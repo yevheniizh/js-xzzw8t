@@ -1,39 +1,40 @@
 import * as THREE from 'three';
 
 const vertexShader = `
-  varying vec2 vUv;
+  varying float x;
+  varying float y;
+  varying float z;
+  varying float u_amplitude;
   uniform float time;
-  varying vec3 vPosition;
+  uniform float[64] tAudioData;
 
   void main() {
-    vPosition = position;
+    u_amplitude = 3.0;
 
-    float sin1 = sin((position.x + position.y) * 0.2 + time * 0.5);
-    float sin2 = sin((position.x - position.y) * 0.4 + time * 2.0);
-    float sin3 = sin((position.x + position.y) * -0.6 + time);
-    vec3 updatePosition = vec3(position.x, position.y, position.z + sin1 * 50.0 + sin2 * 10.0 + sin3 * 8.0);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(updatePosition, 1.0);
+    x = abs(position.x);
+    y = abs(position.y);
+
+    float floor_x = round(x);
+    float floor_y = round(y);
+
+    float x_multiplier = (32.0 - x) / 8.0;
+    float y_multiplier = (32.0 - y) / 8.0;
+
+    z = sin(tAudioData[int(floor_x)] / 50.0 + tAudioData[int(floor_y)] / 50.0) * u_amplitude;
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(1., 1., 1., 1.0);
   }`;
 
 const fragmentShader = `
+  varying float x;
+  varying float y;
+  varying float z;
+
   varying vec3 vPosition;
   uniform float time;
 
-  const float duration = 8.0;
-  const float delay = 2.0;
-
-  vec3 convertHsvToRgb(vec3 c) {
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-  }
-
   void main() {
-    float now = clamp((time - delay) / duration, 0.0, 1.0);
-    float opacity = (1.0 - length(vPosition.xy / vec2(512.0))) * now;
-    vec3 v = normalize(vPosition);
-    vec3 rgb = convertHsvToRgb(vec3(0.5 + (v.x + v.y + v.x) / 40.0 + time * 0.1, 0.4, 1.0));
-    gl_FragColor = vec4(rgb, opacity);
+    gl_FragColor = vec4((32.0 - abs(x)) / 32.0, (32.0 - abs(y)) / 32.0, (abs(x + y) / 2.0) / 32.0, 1.0);
   }`;
 
 class Sketch {
@@ -132,6 +133,7 @@ class Sketch {
     this.analyser.fftSize = 1024;
     this.bufferLength = this.analyser.frequencyBinCount;
     this.dataArray = new Uint8Array(this.bufferLength);
+    this.material.uniforms.tAudioData.value = this.dataArray;
   }
 
   addObjects() {
@@ -140,6 +142,7 @@ class Sketch {
       uniforms: {
         time: { value: 0 },
         position: { value: 0 },
+        tAudioData: { type: 'float[64]', value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -156,8 +159,14 @@ class Sketch {
   render() {
     this.time += 0.02;
 
+    if (this.analyser && this.dataArray) {
+      this.analyser.getByteFrequencyData(this.dataArray);
+    }
+
     // Update uniforms
     this.material.uniforms.time.value = this.time;
+    // this.material.uniforms.tAudioData.value.needsUpdate = true;
+    this.material.uniforms.tAudioData.value = this.dataArray;
 
     // Move camera on mousemove
     this.target.x = (1 - this.mouseX) * 0.0005;
