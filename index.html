@@ -1,0 +1,25 @@
+<canvas id="webgl" style="position: absolute; inset: 0; z-index: -1"></canvas>
+
+<audio id="audio" controls>
+  <source
+    src="https://www.dropbox.com/scl/fi/uurlz6hr2knxifmaxk088/376737_Skullbeatz___Bad_Cat_Maste.ogg?dl=1"
+    type="audio/ogg"
+  />
+  <source
+    src="https://www.dropbox.com/scl/fi/0gqlxeiz9nocqlgj6ycm3/376737_Skullbeatz___Bad_Cat_Maste.mp3?dl=1"
+    type="audio/mpeg"
+  />
+</audio>
+
+<script
+  async
+  src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"
+></script>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.156.1/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.156.1/examples/jsm/"
+    }
+  }
+</script>
