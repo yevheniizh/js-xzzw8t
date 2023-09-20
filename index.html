@@ -1,15 +1,8 @@
+<!-- Inspired by https://ykob.github.io/sketch-threejs/ -->
 <canvas id="webgl" style="position: absolute; inset: 0; z-index: -1"></canvas>
 
-<audio id="audio" controls>
-  <source
-    src="https://www.dropbox.com/scl/fi/uurlz6hr2knxifmaxk088/376737_Skullbeatz___Bad_Cat_Maste.ogg?dl=1"
-    type="audio/ogg"
-  />
-  <source
-    src="https://www.dropbox.com/scl/fi/0gqlxeiz9nocqlgj6ycm3/376737_Skullbeatz___Bad_Cat_Maste.mp3?dl=1"
-    type="audio/mpeg"
-  />
-</audio>
+<input id="input" type="file" accept="audio/mpeg, audio/ogg" />
+<button id="button" type="button">Play</button>
 
 <script
   async
