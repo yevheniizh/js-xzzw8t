@@ -4,12 +4,13 @@ const vertexShader = `
   varying float x;
   varying float y;
   varying float z;
-  varying float u_amplitude;
+  varying vec3 vUv;
+
   uniform float time;
-  uniform float[64] tAudioData;
+  uniform float[64] u_data_arr;
 
   void main() {
-    u_amplitude = 3.0;
+    vUv = position;
 
     x = abs(position.x);
     y = abs(position.y);
@@ -20,17 +21,17 @@ const vertexShader = `
     float x_multiplier = (32.0 - x) / 8.0;
     float y_multiplier = (32.0 - y) / 8.0;
 
-    z = sin(tAudioData[int(floor_x)] / 50.0 + tAudioData[int(floor_y)] / 50.0) * u_amplitude;
+    z = sin(u_data_arr[int(floor_x)] / 50.0 + u_data_arr[int(floor_y)] / 50.0) * 3.;
 
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(1., 1., 1., 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, position.y, z, 1.0);
   }`;
 
 const fragmentShader = `
   varying float x;
   varying float y;
   varying float z;
+  varying vec3 vUv;
 
-  varying vec3 vPosition;
   uniform float time;
 
   void main() {
@@ -133,16 +134,17 @@ class Sketch {
     this.analyser.fftSize = 1024;
     this.bufferLength = this.analyser.frequencyBinCount;
     this.dataArray = new Uint8Array(this.bufferLength);
-    this.material.uniforms.tAudioData.value = this.dataArray;
+    console.log(this.bufferLength, this.dataArray);
+    // this.material.uniforms.u_data_arr.value = this.dataArray;
   }
 
   addObjects() {
-    this.geometry = new THREE.PlaneGeometry(1024, 1024, 32, 32);
+    this.geometry = new THREE.PlaneGeometry(64, 64, 64, 64);
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
         position: { value: 0 },
-        tAudioData: { type: 'float[64]', value: 0 },
+        u_data_arr: { type: 'float[64]', value: undefined },
       },
       vertexShader,
       fragmentShader,
@@ -152,21 +154,24 @@ class Sketch {
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.scene.add(this.mesh);
 
-    this.mesh.position.set(0, -175, 0);
+    this.mesh.scale.x = 2;
+    this.mesh.scale.y = 2;
+    this.mesh.scale.z = 2;
+    this.mesh.position.y = -8;
     this.mesh.rotation.set(-Math.PI / 3, 0, 0);
   }
 
   render() {
     this.time += 0.02;
+    this.material.uniforms.time.value = this.time;
 
     if (this.analyser && this.dataArray) {
       this.analyser.getByteFrequencyData(this.dataArray);
+      // this.material.uniforms.u_data_arr.value.needsUpdate = true;
+      this.material.uniforms.u_data_arr.value = this.dataArray;
+    } else {
+      this.material.uniforms.u_data_arr.value = new Uint8Array();
     }
-
-    // Update uniforms
-    this.material.uniforms.time.value = this.time;
-    // this.material.uniforms.tAudioData.value.needsUpdate = true;
-    this.material.uniforms.tAudioData.value = this.dataArray;
 
     // Move camera on mousemove
     this.target.x = (1 - this.mouseX) * 0.0005;
