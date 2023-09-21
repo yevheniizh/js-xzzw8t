@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const vertexShader = `
-  varying vec3 vUv;
+  varying vec2 vUv;
   varying vec3 vPosition;
   varying float x;
   varying float y;
@@ -11,7 +11,7 @@ const vertexShader = `
   uniform float[64] tAudioData;
 
   void main() {
-    vUv = position;
+    vUv = uv;
     vPosition = position;
 
     x = abs(position.x);
@@ -20,10 +20,7 @@ const vertexShader = `
     float floor_x = round(x);
     float floor_y = round(y);
 
-    float x_multiplier = (32.0 - x) / 8.0;
-    float y_multiplier = (32.0 - y) / 8.0;
-
-    z = sin(tAudioData[int(floor_x)] / 25.0 + tAudioData[int(floor_y)] / 25.0) * 1.;
+    z = sin(tAudioData[int(floor_x)] / 32.0 + tAudioData[int(floor_y)] / 32.0) * 0.75;
 
     float sin1 = sin((position.x + position.y) * 0.2 + time * 0.5);
     float sin2 = sin((position.x - position.y) * 0.4 + time * 0.5);
@@ -34,7 +31,7 @@ const vertexShader = `
   }`;
 
 const fragmentShader = `
-  varying vec3 vUv;
+  varying vec2 vUv;
   varying vec3 vPosition;
   uniform float time;
   const float duration = 8.0;
@@ -54,11 +51,7 @@ const fragmentShader = `
 
     vec3 color = vec3(1.,1.,1.);
 
-    if( magicEnabled ) {
-      vec3 v = normalize(vPosition);
-      vec3 rgb = convertHsvToRgb(vec3(0.5 + (v.x + v.y + v.x) / 40.0 + time * 0.1, 0.4, 1.0));
-      color = rgb;
-    }
+    if( magicEnabled ) color = vec3(vUv,1.);
 
     gl_FragColor = vec4(color, opacity);
   }`;
@@ -109,12 +102,11 @@ class Sketch {
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(
-      75,
+      85,
       this.width / this.height,
       0.1,
       1000
     );
-    this.camera.position.z = 5;
 
     // Timer
     this.time = 0;
@@ -144,9 +136,11 @@ class Sketch {
     this.inputNode.addEventListener(
       'change',
       () => {
-        this.playerNode.src = URL.createObjectURL(this.inputNode.files[0]);
-        this.playerNode.load();
-        this.playerNode.play();
+        if (this.inputNode.files.length > 0) {
+          this.playerNode.src = URL.createObjectURL(this.inputNode.files[0]);
+          this.playerNode.load();
+          this.playerNode.play();
+        }
       },
       false
     );
@@ -180,11 +174,12 @@ class Sketch {
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.scene.add(this.mesh);
 
-    this.mesh.scale.x = 2;
-    this.mesh.scale.y = 2;
-    this.mesh.scale.z = 2;
-    this.mesh.position.y = -8;
-    this.mesh.rotation.set(-Math.PI / 3, 0, 0);
+    this.mesh.scale.x = 0.5;
+    this.mesh.scale.y = 0.25;
+    this.mesh.scale.z = 0.15;
+    this.mesh.position.y = 2.5;
+    this.mesh.position.z = -10;
+    this.mesh.rotation.set(-(Math.PI / 2.6), 0, 0);
   }
 
   render() {
@@ -200,10 +195,10 @@ class Sketch {
     }
 
     // Move camera on mousemove
-    this.target.x = (1 - this.mouseX) * 0.0005;
-    this.target.y = (1 - this.mouseY) * 0.0005;
-    this.camera.rotation.x += 0.05 * (this.target.y - this.camera.rotation.x);
-    this.camera.rotation.y += 0.05 * (this.target.x - this.camera.rotation.y);
+    this.target.x = (1 - this.mouseX) * 0.0001;
+    this.target.y = (1 - this.mouseY) * 0.0001;
+    this.camera.rotation.x += 0.025 * (this.target.y - this.camera.rotation.x);
+    this.camera.rotation.y += 0.025 * (this.target.x - this.camera.rotation.y);
 
     this.renderer.render(this.scene, this.camera);
     window.requestAnimationFrame(this.render.bind(this));
@@ -214,5 +209,5 @@ new Sketch({
   canvasNode: document.getElementById('webgl'),
   inputNode: document.getElementById('input'),
   playerNode: document.getElementById('player'),
-  checkboxNode: document.getElementById('checkbox'),
+  checkboxNode: document.getElementById('magic-checkbox'),
 });
