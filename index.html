@@ -1,16 +1,21 @@
 <!-- Inspired by https://ykob.github.io/sketch-threejs/ -->
 <!-- Reference https://youtu.be/tQL1VLTJTnc -->
 
+<style>
+  #player-button.playing {
+    background-color: purple;
+  }
+  #strength-button.enabled {
+    background-color: purple;
+  }
+</style>
+
+<button id="player-button" disabled>▶️</button>
+<button id="strength-button">100% Strength</button>
+
+<!-- To be migrated to the Webflow -->
+
 <canvas id="webgl" style="position: absolute; inset: 0; z-index: -1"></canvas>
-
-<input id="input" type="file" accept="audio/mpeg, audio/ogg, audio/wav" />
-
-<audio id="player" controls></audio>
-
-<label for="checkbox"
-  >Magic audio
-  <input id="magic-checkbox" type="checkbox" />
-</label>
 
 <script
   async

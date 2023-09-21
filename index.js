@@ -71,11 +71,14 @@ class Sketch {
   };
 
   constructor(options) {
-    // Nodes
-    this.canvasNode = options.canvasNode;
-    this.inputNode = options.inputNode;
-    this.playerNode = options.playerNode;
-    this.checkboxNode = options.checkboxNode;
+    // Elements
+    this.canvas = options.canvas;
+    this.playerButton = options.playerButton;
+    this.strengthButton = options.strengthButton;
+
+    // State
+    this.enabled = false;
+    this.playing = false;
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
@@ -92,7 +95,7 @@ class Sketch {
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvasNode,
+      canvas: this.canvas,
       alpha: true,
       antialias: true,
     });
@@ -112,12 +115,49 @@ class Sketch {
     this.time = 0;
 
     // Initializing
+    this.setupStrengthButtonEvents();
     this.setupMouseEvents();
     this.setupResize();
-    this.setupAudio();
-    this.setupAudioContext();
+    this.setupPlayer();
     this.addObjects();
     this.render();
+  }
+
+  setupPlayer() {
+    const stream =
+      'https://cdn.rawgit.com/ellenprobst/web-audio-api-with-Threejs/57582104/lib/TheWarOnDrugs.m4a'; // <- source must be from CDN
+
+    this.audioLoader = new THREE.AudioLoader();
+    this.listener = new THREE.AudioListener();
+    this.audio = new THREE.Audio(this.listener);
+    this.audio.crossOrigin = 'anonymous';
+    this.audioLoader.load(stream, (buffer) => {
+      this.audio.setBuffer(buffer);
+
+      this.playerButton.disabled = false;
+      this.playerButton.addEventListener('click', () => {
+        if (this.audio.isPlaying) {
+          this.audio.pause();
+          this.playerButton.classList.remove('playing');
+          this.playerButton.textContent = '▶️'; // for local testing purposes
+        } else {
+          this.audio.play();
+          this.playerButton.classList.add('playing');
+          this.playerButton.textContent = '⏸️'; // for local testing purposes
+        }
+      });
+    });
+
+    this.analyser = new THREE.AudioAnalyser(this.audio, 512);
+  }
+
+  setupStrengthButtonEvents() {
+    this.strengthButton.addEventListener('click', () => {
+      this.enabled = !this.enabled;
+      this.enabled
+        ? this.strengthButton.classList.add('enabled')
+        : this.strengthButton.classList.remove('enabled');
+    });
   }
 
   setupMouseEvents() {
@@ -125,36 +165,7 @@ class Sketch {
   }
 
   setupResize() {
-    window.addEventListener('resize', this.onResize.bind(this));
-  }
-
-  setupResize() {
-    window.addEventListener('resize', this.onResize.bind(this));
-  }
-
-  setupAudio() {
-    this.inputNode.addEventListener(
-      'change',
-      () => {
-        if (this.inputNode.files.length > 0) {
-          this.playerNode.src = URL.createObjectURL(this.inputNode.files[0]);
-          this.playerNode.load();
-          this.playerNode.play();
-        }
-      },
-      false
-    );
-  }
-
-  setupAudioContext() {
-    this.audioContext = new AudioContext();
-    this.audioSrc = this.audioContext.createMediaElementSource(this.playerNode);
-    this.audioAnalyser = this.audioContext.createAnalyser();
-    this.audioSrc.connect(this.audioAnalyser);
-    this.audioAnalyser.connect(this.audioContext.destination);
-    this.audioAnalyser.fftSize = 1024;
-    this.audioBufferLength = this.audioAnalyser.frequencyBinCount;
-    this.audioDataArray = new Uint8Array(this.audioBufferLength);
+    window.addEventListener('resize', this.onResize);
   }
 
   addObjects() {
@@ -186,12 +197,11 @@ class Sketch {
     this.time += 0.02;
 
     this.material.uniforms.time.value = this.time;
-    this.material.uniforms.magicEnabled.value = this.checkboxNode.checked;
+    this.material.uniforms.magicEnabled.value = this.enabled;
 
-    // Update sounds data
-    if (this.audioAnalyser && this.audioDataArray) {
-      this.audioAnalyser.getByteFrequencyData(this.audioDataArray);
-      this.material.uniforms.tAudioData.value = this.audioDataArray;
+    if (this.analyser) {
+      this.analyser.getFrequencyData();
+      this.material.uniforms.tAudioData.value = this.analyser.data;
     }
 
     // Move camera on mousemove
@@ -206,8 +216,7 @@ class Sketch {
 }
 
 new Sketch({
-  canvasNode: document.getElementById('webgl'),
-  inputNode: document.getElementById('input'),
-  playerNode: document.getElementById('player'),
-  checkboxNode: document.getElementById('magic-checkbox'),
+  canvas: document.getElementById('webgl'),
+  playerButton: document.getElementById('player-button'),
+  strengthButton: document.getElementById('strength-button'),
 });
