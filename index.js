@@ -40,6 +40,8 @@ const fragmentShader = `
   const float duration = 8.0;
   const float delay = 1.0;
 
+  uniform bool magicEnabled;
+
   vec3 convertHsvToRgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
     vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
@@ -49,9 +51,16 @@ const fragmentShader = `
   void main() {
     float now = clamp((time - delay) / duration, 0.0, 1.0);
     float opacity = (1.0 - length(vPosition.xy / vec2(32.0))) * now;
-    vec3 v = normalize(vPosition);
-    vec3 rgb = convertHsvToRgb(vec3(0.5 + (v.x + v.y + v.x) / 40.0 + time * 0.1, 0.4, 1.0));
-    gl_FragColor = vec4(rgb, opacity);
+
+    vec3 color = vec3(1.,1.,1.);
+
+    if( magicEnabled ) {
+      vec3 v = normalize(vPosition);
+      vec3 rgb = convertHsvToRgb(vec3(0.5 + (v.x + v.y + v.x) / 40.0 + time * 0.1, 0.4, 1.0));
+      color = rgb;
+    }
+
+    gl_FragColor = vec4(color, opacity);
   }`;
 
 class Sketch {
@@ -60,19 +69,20 @@ class Sketch {
     this.mouseY = event.clientY - this.windowHalfY;
   };
 
-  onResize() {
+  onResize = () => {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
     this.renderer.setSize(this.width, this.height);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
-  }
+  };
 
   constructor(options) {
     // Nodes
     this.canvasNode = options.canvasNode;
     this.inputNode = options.inputNode;
     this.playerNode = options.playerNode;
+    this.checkboxNode = options.checkboxNode;
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
@@ -113,6 +123,7 @@ class Sketch {
     this.setupMouseEvents();
     this.setupResize();
     this.setupAudio();
+    this.setupAudioContext();
     this.addObjects();
     this.render();
   }
@@ -125,17 +136,17 @@ class Sketch {
     window.addEventListener('resize', this.onResize.bind(this));
   }
 
-  setupAudio() {
-    this.listener = new THREE.AudioListener();
-    this.audio = new THREE.Audio(this.listener);
+  setupResize() {
+    window.addEventListener('resize', this.onResize.bind(this));
+  }
 
+  setupAudio() {
     this.inputNode.addEventListener(
       'change',
       () => {
         this.playerNode.src = URL.createObjectURL(this.inputNode.files[0]);
         this.playerNode.load();
         this.playerNode.play();
-        if (!this.audioContext) this.setupAudioContext();
       },
       false
     );
@@ -158,6 +169,7 @@ class Sketch {
       uniforms: {
         time: { value: 0 },
         position: { value: 0 },
+        magicEnabled: { value: 0 },
         tAudioData: { value: new Uint8Array() },
       },
       vertexShader,
@@ -177,7 +189,9 @@ class Sketch {
 
   render() {
     this.time += 0.02;
+
     this.material.uniforms.time.value = this.time;
+    this.material.uniforms.magicEnabled.value = this.checkboxNode.checked;
 
     // Update sounds data
     if (this.audioAnalyser && this.audioDataArray) {
@@ -200,4 +214,5 @@ new Sketch({
   canvasNode: document.getElementById('webgl'),
   inputNode: document.getElementById('input'),
   playerNode: document.getElementById('player'),
+  checkboxNode: document.getElementById('checkbox'),
 });
