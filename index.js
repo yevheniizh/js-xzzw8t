@@ -42,23 +42,36 @@ class Sketch {
     this.mouseY = event.clientY - this.windowHalfY;
   };
 
+  onResize() {
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.renderer.setSize(this.width, this.height);
+    this.camera.aspect = this.width / this.height;
+    this.camera.updateProjectionMatrix();
+  }
+
   constructor(options) {
-    this.container = options.canvas;
+    // Nodes
+    this.canvas = options.canvas;
     this.input = options.input;
-    this.button = options.button;
+    this.player = options.player;
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
 
-    this.scene = new THREE.Scene();
+    // Mouse
     this.target = new THREE.Vector3();
     this.mouseX = 0;
     this.mouseY = 0;
     this.windowHalfX = this.width / 2;
     this.windowHalfY = this.height / 2;
 
+    // Scene
+    this.scene = new THREE.Scene();
+
+    // Renderer
     this.renderer = new THREE.WebGLRenderer({
-      canvas: this.container,
+      canvas: this.canvas,
       alpha: true,
       antialias: true,
     });
@@ -66,25 +79,32 @@ class Sketch {
     this.renderer.setSize(this.width, this.height);
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
 
+    // Camera
     this.camera = new THREE.PerspectiveCamera(
       75,
-      window.innerWidth / window.innerHeight,
+      this.width / this.height,
       0.1,
       1000
     );
     this.camera.position.z = 5;
 
+    // Timer
     this.time = 0;
 
+    // Initializing
     this.setupMouseEvents();
+    this.setupResize();
     this.setupAudio();
     this.addObjects();
-    this.setupResize();
     this.render();
   }
 
   setupMouseEvents() {
     window.addEventListener('mousemove', this.onMouseMove);
+  }
+
+  setupResize() {
+    window.addEventListener('resize', this.onResize.bind(this));
   }
 
   setupAudio() {
@@ -93,70 +113,34 @@ class Sketch {
 
     this.input.addEventListener(
       'change',
-      (event) => {
-        const files = event.target.files;
-        const reader = new FileReader();
-
-        reader.onload = (file) => {
-          const arrayBuffer = file.target.result;
-
-          this.listener.context.decodeAudioData(arrayBuffer, (audioBuffer) => {
-            this.audio.setBuffer(audioBuffer);
-          });
-        };
-
-        reader.readAsArrayBuffer(files[0]);
+      () => {
+        this.player.src = URL.createObjectURL(this.input.files[0]);
+        this.player.load();
+        this.player.play();
+        this.setupAudioContext();
       },
       false
     );
-
-    this.button.addEventListener('click', () => this.audio.play(), false);
-
-    // // create an AudioListener and add it to the camera
-    // this.listener = new THREE.AudioListener();
-    // this.camera.add(this.listener);
-
-    // // create a global audio source
-    // this.sound = new THREE.Audio(this.listener);
-
-    // // load a sound and set it as the Audio object's buffer
-    // this.audioLoader = new THREE.AudioLoader();
-    // this.audioLoader.load('sounds/ambient.ogg', function (buffer) {
-    //   this.sound.setBuffer(buffer);
-    //   this.sound.setLoop(true);
-    //   this.sound.setVolume(0.5);
-    //   this.sound.play();
-    // });
-
-    // // create an AudioAnalyser, passing in the sound and desired fftSize
-    // this.analyser = new THREE.AudioAnalyser(this.sound, 32);
-
-    // // get the average frequency of the sound
-    // const data = this.analyser.getAverageFrequency();
   }
 
-  setupResize() {
-    window.addEventListener('resize', this.resize.bind(this));
-  }
-
-  resize() {
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
-
-    this.renderer.setSize(this.width, this.height);
-    this.camera.aspect = this.width / this.height;
-
-    this.camera.updateProjectionMatrix();
+  setupAudioContext() {
+    this.context = new AudioContext();
+    this.src = this.context.createMediaElementSource(this.player);
+    this.analyser = this.context.createAnalyser();
+    this.src.connect(this.analyser);
+    this.analyser.connect(this.context.destination);
+    this.analyser.fftSize = 1024;
+    this.bufferLength = this.analyser.frequencyBinCount;
+    this.dataArray = new Uint8Array(this.bufferLength);
   }
 
   addObjects() {
-    this.uniforms = {
-      time: { value: 0 },
-      position: { value: 0 },
-    };
     this.geometry = new THREE.PlaneGeometry(1024, 1024, 32, 32);
     this.material = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
+      uniforms: {
+        time: { value: 0 },
+        position: { value: 0 },
+      },
       vertexShader,
       fragmentShader,
       transparent: true,
@@ -171,6 +155,8 @@ class Sketch {
 
   render() {
     this.time += 0.02;
+
+    // Update uniforms
     this.material.uniforms.time.value = this.time;
 
     // Move camera on mousemove
@@ -187,5 +173,5 @@ class Sketch {
 new Sketch({
   canvas: document.getElementById('webgl'),
   input: document.getElementById('input'),
-  button: document.getElementById('button'),
+  player: document.getElementById('player'),
 });
