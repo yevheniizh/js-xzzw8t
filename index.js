@@ -70,9 +70,9 @@ class Sketch {
 
   constructor(options) {
     // Nodes
-    this.canvas = options.canvas;
-    this.input = options.input;
-    this.player = options.player;
+    this.canvasNode = options.canvasNode;
+    this.inputNode = options.inputNode;
+    this.playerNode = options.playerNode;
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
@@ -89,7 +89,7 @@ class Sketch {
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
+      canvas: this.canvasNode,
       alpha: true,
       antialias: true,
     });
@@ -129,27 +129,27 @@ class Sketch {
     this.listener = new THREE.AudioListener();
     this.audio = new THREE.Audio(this.listener);
 
-    this.input.addEventListener(
+    this.inputNode.addEventListener(
       'change',
       () => {
-        this.player.src = URL.createObjectURL(this.input.files[0]);
-        this.player.load();
-        this.player.play();
-        this.setupAudioContext();
+        this.playerNode.src = URL.createObjectURL(this.inputNode.files[0]);
+        this.playerNode.load();
+        this.playerNode.play();
+        if (!this.audioContext) this.setupAudioContext();
       },
       false
     );
   }
 
   setupAudioContext() {
-    this.context = new AudioContext();
-    this.src = this.context.createMediaElementSource(this.player);
-    this.analyser = this.context.createAnalyser();
-    this.src.connect(this.analyser);
-    this.analyser.connect(this.context.destination);
-    this.analyser.fftSize = 1024;
-    this.bufferLength = this.analyser.frequencyBinCount;
-    this.dataArray = new Uint8Array(this.bufferLength);
+    this.audioContext = new AudioContext();
+    this.audioSrc = this.audioContext.createMediaElementSource(this.playerNode);
+    this.audioAnalyser = this.audioContext.createAnalyser();
+    this.audioSrc.connect(this.audioAnalyser);
+    this.audioAnalyser.connect(this.audioContext.destination);
+    this.audioAnalyser.fftSize = 1024;
+    this.audioBufferLength = this.audioAnalyser.frequencyBinCount;
+    this.audioDataArray = new Uint8Array(this.audioBufferLength);
   }
 
   addObjects() {
@@ -180,9 +180,9 @@ class Sketch {
     this.material.uniforms.time.value = this.time;
 
     // Update sounds data
-    if (this.analyser && this.dataArray) {
-      this.analyser.getByteFrequencyData(this.dataArray);
-      this.material.uniforms.tAudioData.value = this.dataArray;
+    if (this.audioAnalyser && this.audioDataArray) {
+      this.audioAnalyser.getByteFrequencyData(this.audioDataArray);
+      this.material.uniforms.tAudioData.value = this.audioDataArray;
     }
 
     // Move camera on mousemove
@@ -197,7 +197,7 @@ class Sketch {
 }
 
 new Sketch({
-  canvas: document.getElementById('webgl'),
-  input: document.getElementById('input'),
-  player: document.getElementById('player'),
+  canvasNode: document.getElementById('webgl'),
+  inputNode: document.getElementById('input'),
+  playerNode: document.getElementById('player'),
 });
