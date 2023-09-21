@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 
 const vertexShader = `
+  varying vec3 vUv;
+  varying vec3 vPosition;
   varying float x;
   varying float y;
   varying float z;
-  varying vec3 vUv;
-  varying vec3 vPosition;
 
   uniform float time;
-  uniform float[64] u_data_arr;
+  uniform float[64] tAudioData;
 
   void main() {
     vUv = position;
@@ -23,7 +23,7 @@ const vertexShader = `
     float x_multiplier = (32.0 - x) / 8.0;
     float y_multiplier = (32.0 - y) / 8.0;
 
-    z = sin(u_data_arr[int(floor_x)] / 25.0 + u_data_arr[int(floor_y)] / 25.0) * 1.;
+    z = sin(tAudioData[int(floor_x)] / 25.0 + tAudioData[int(floor_y)] / 25.0) * 1.;
 
     float sin1 = sin((position.x + position.y) * 0.2 + time * 0.5);
     float sin2 = sin((position.x - position.y) * 0.4 + time * 0.5);
@@ -34,10 +34,11 @@ const vertexShader = `
   }`;
 
 const fragmentShader = `
+  varying vec3 vUv;
   varying vec3 vPosition;
   uniform float time;
   const float duration = 8.0;
-  const float delay = 2.0;
+  const float delay = 1.0;
 
   vec3 convertHsvToRgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -149,8 +150,6 @@ class Sketch {
     this.analyser.fftSize = 1024;
     this.bufferLength = this.analyser.frequencyBinCount;
     this.dataArray = new Uint8Array(this.bufferLength);
-    console.log(this.bufferLength, this.dataArray);
-    // this.material.uniforms.u_data_arr.value = this.dataArray;
   }
 
   addObjects() {
@@ -159,7 +158,7 @@ class Sketch {
       uniforms: {
         time: { value: 0 },
         position: { value: 0 },
-        u_data_arr: { type: 'float[64]', value: new Uint8Array() },
+        tAudioData: { value: new Uint8Array() },
       },
       vertexShader,
       fragmentShader,
@@ -180,11 +179,12 @@ class Sketch {
     this.time += 0.02;
     this.material.uniforms.time.value = this.time;
 
+    // Update sounds data
     if (this.analyser && this.dataArray) {
       this.analyser.getByteFrequencyData(this.dataArray);
-      // this.material.uniforms.u_data_arr.value.needsUpdate = true;
-      this.material.uniforms.u_data_arr.value = this.dataArray;
+      this.material.uniforms.tAudioData.value = this.dataArray;
     }
+
     // Move camera on mousemove
     this.target.x = (1 - this.mouseX) * 0.0005;
     this.target.y = (1 - this.mouseY) * 0.0005;
