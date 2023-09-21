@@ -5,12 +5,14 @@ const vertexShader = `
   varying float y;
   varying float z;
   varying vec3 vUv;
+  varying vec3 vPosition;
 
   uniform float time;
   uniform float[64] u_data_arr;
 
   void main() {
     vUv = position;
+    vPosition = position;
 
     x = abs(position.x);
     y = abs(position.y);
@@ -21,21 +23,34 @@ const vertexShader = `
     float x_multiplier = (32.0 - x) / 8.0;
     float y_multiplier = (32.0 - y) / 8.0;
 
-    z = sin(u_data_arr[int(floor_x)] / 50.0 + u_data_arr[int(floor_y)] / 50.0) * 3.;
+    z = sin(u_data_arr[int(floor_x)] / 25.0 + u_data_arr[int(floor_y)] / 25.0) * 1.;
 
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, position.y, z, 1.0);
+    float sin1 = sin((position.x + position.y) * 0.2 + time * 0.5);
+    float sin2 = sin((position.x - position.y) * 0.4 + time * 0.5);
+    float sin3 = sin((position.x + position.y) * -0.6 + time);
+    vec3 updatePosition = vec3(position.x, position.y, z + sin1 * 0.5 + sin2 * 0.5 + sin3 * 0.1);
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(updatePosition, 1.0);
   }`;
 
 const fragmentShader = `
-  varying float x;
-  varying float y;
-  varying float z;
-  varying vec3 vUv;
-
+  varying vec3 vPosition;
   uniform float time;
+  const float duration = 8.0;
+  const float delay = 2.0;
+
+  vec3 convertHsvToRgb(vec3 c) {
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+  }
 
   void main() {
-    gl_FragColor = vec4((32.0 - abs(x)) / 32.0, (32.0 - abs(y)) / 32.0, (abs(x + y) / 2.0) / 32.0, 1.0);
+    float now = clamp((time - delay) / duration, 0.0, 1.0);
+    float opacity = (1.0 - length(vPosition.xy / vec2(32.0))) * now;
+    vec3 v = normalize(vPosition);
+    vec3 rgb = convertHsvToRgb(vec3(0.5 + (v.x + v.y + v.x) / 40.0 + time * 0.1, 0.4, 1.0));
+    gl_FragColor = vec4(rgb, opacity);
   }`;
 
 class Sketch {
@@ -144,7 +159,7 @@ class Sketch {
       uniforms: {
         time: { value: 0 },
         position: { value: 0 },
-        u_data_arr: { type: 'float[64]', value: undefined },
+        u_data_arr: { type: 'float[64]', value: new Uint8Array() },
       },
       vertexShader,
       fragmentShader,
@@ -169,10 +184,7 @@ class Sketch {
       this.analyser.getByteFrequencyData(this.dataArray);
       // this.material.uniforms.u_data_arr.value.needsUpdate = true;
       this.material.uniforms.u_data_arr.value = this.dataArray;
-    } else {
-      this.material.uniforms.u_data_arr.value = new Uint8Array();
     }
-
     // Move camera on mousemove
     this.target.x = (1 - this.mouseX) * 0.0005;
     this.target.y = (1 - this.mouseY) * 0.0005;
