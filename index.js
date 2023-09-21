@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 
+const radians = (degrees) => {
+  return (degrees * Math.PI) / 180;
+};
+
 const vertexShader = `
   varying vec2 vUv;
   uniform float time;
@@ -20,7 +24,7 @@ const fragmentShader = `
   uniform float time;
 
   const float duration = 8.0;
-  const float delay = 2.0;
+  const float delay = 0.5;
 
   vec3 convertHsvToRgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -86,7 +90,7 @@ class Sketch {
       0.1,
       1000
     );
-    this.camera.position.z = 5;
+    this.camera.position.z = 100;
 
     // Timer
     this.time = 0;
@@ -149,12 +153,12 @@ class Sketch {
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.scene.add(this.mesh);
 
-    this.mesh.position.set(0, -175, 0);
-    this.mesh.rotation.set(-Math.PI / 3, 0, 0);
+    this.mesh.position.set(0, -150, 0);
+    this.mesh.rotation.set(radians(-90), 0, 0);
   }
 
   render() {
-    this.time += 0.02;
+    this.time += 0.03;
 
     // Update uniforms
     this.material.uniforms.time.value = this.time;
