@@ -124,39 +124,87 @@ class Sketch {
   }
 
   setupPlayer() {
-    const stream =
-      'https://cdn.rawgit.com/ellenprobst/web-audio-api-with-Threejs/57582104/lib/TheWarOnDrugs.m4a'; // <- source must be from CDN
+    /**
+     * NOTE: sources must be stored on some CDN!
+     * Easyest way to do this is to push raw audio files to the Github repo
+     * and just prepare the link in the next format (using under-the-hood "jsdelivr" free CDN)
+     * Example: "https://cdn.jsdelivr.net/gh/${user}/${repo}@${branch}/${filepath}"
+     */
+    const tracks = [
+      "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_enhanced_speech.wav",
+      "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_unenhanced_speech.wav",
+    ];
 
-    this.audioLoader = new THREE.AudioLoader();
-    this.listener = new THREE.AudioListener();
-    this.audio = new THREE.Audio(this.listener);
-    this.audio.crossOrigin = 'anonymous';
-    this.audioLoader.load(stream, (buffer) => {
-      this.audio.setBuffer(buffer);
+    this.activeAudio;
+    this.inactiveAudio;
+    this.activeAnalizer;
+    this.loadedCount = 0; // how many tags are ready to play through?
 
-      this.playerButton.disabled = false;
-      this.playerButton.addEventListener('click', () => {
-        if (this.audio.isPlaying) {
-          this.audio.pause();
-          this.playerButton.classList.remove('playing');
-          this.playerButton.textContent = '▶️'; // for local testing purposes
-        } else {
-          this.audio.play();
-          this.playerButton.classList.add('playing');
-          this.playerButton.textContent = '⏸️'; // for local testing purposes
-        }
-      });
+    // First track
+    this.audioLoader1 = new THREE.AudioLoader();
+    this.listener1 = new THREE.AudioListener();
+    this.audio1 = new THREE.Audio(this.listener1);
+    this.audioLoader1.load(tracks[0], (buffer) => {
+      this.audio1.setBuffer(buffer);
+      this.loadedCount = this.loadedCount + 1;
+      if( this.loadedCount === tracks.length ) this.onload();
     });
+    this.analizer1 = new THREE.AudioAnalyser(this.audio1, 512);
 
-    this.analyser = new THREE.AudioAnalyser(this.audio, 512);
+    // Second track
+    this.audioLoader2 = new THREE.AudioLoader();
+    this.listener2 = new THREE.AudioListener();
+    this.audio2 = new THREE.Audio(this.listener2);
+    this.audioLoader2.load(tracks[1], (buffer) => {
+      this.audio2.setBuffer(buffer);
+      this.loadedCount = this.loadedCount + 1;
+      if( this.loadedCount === tracks.length ) this.onload();
+    });
+    this.analizer2 = new THREE.AudioAnalyser(this.audio2, 512);
+  }
+
+  onload() {
+    this.activeAudio = this.audio1;
+    this.inactiveAudio = this.audio2;
+    this.activeAnalizer = this.analizer1;
+    this.playerButton.disabled = false;
+    this.playerButton.addEventListener('click', () => {
+      if (this.activeAudio.isPlaying) {
+        this.activeAudio.pause();
+        this.inactiveAudio.pause();
+        this.inactiveAudio.setVolume( 0 );
+
+        this.playerButton.classList.remove('playing');
+        this.playerButton.textContent = '▶️'; // for local testing purposes
+      } else {
+        this.activeAudio.play();
+        this.inactiveAudio.play();
+        this.inactiveAudio.setVolume( 0 );
+
+        this.playerButton.classList.add('playing');
+        this.playerButton.textContent = '⏸️'; // for local testing purposes
+      }
+    });
   }
 
   setupStrengthButtonEvents() {
     this.strengthButton.addEventListener('click', () => {
       this.enabled = !this.enabled;
-      this.enabled
-        ? this.strengthButton.classList.add('enabled')
-        : this.strengthButton.classList.remove('enabled');
+      if ( this.enabled ) {
+        this.strengthButton.classList.add('enabled');
+        this.activeAudio = this.audio1;
+        this.activeAudio.setVolume( 0.5 );
+        this.inactiveAudio = this.audio2;
+        this.inactiveAudio.setVolume( 0 );
+        this.activeAnalizer = this.analizer1;
+      } else {
+        this.strengthButton.classList.remove('enabled');
+        this.activeAudio = this.audio2;
+        this.activeAudio.setVolume( 0.5 );
+        this.inactiveAudio = this.audio1;
+        this.inactiveAudio.setVolume( 0 );
+        this.activeAnalizer = this.analizer2;
+      }
     });
   }
 
@@ -199,9 +247,9 @@ class Sketch {
     this.material.uniforms.time.value = this.time;
     this.material.uniforms.magicEnabled.value = this.enabled;
 
-    if (this.analyser) {
-      this.analyser.getFrequencyData();
-      this.material.uniforms.tAudioData.value = this.analyser.data;
+    if (this.activeAnalizer) {
+      this.activeAnalizer.getFrequencyData();
+      this.material.uniforms.tAudioData.value = this.activeAnalizer.data;
     }
 
     // Move camera on mousemove
