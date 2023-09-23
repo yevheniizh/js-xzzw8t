@@ -2,26 +2,25 @@
 <!-- Inspired by the idea of https://podcast.adobe.com/enhance -->
 <!-- Idea for Audio+ThreeJS originally from https://youtu.be/tQL1VLTJTnc -->
 
-<style>
-  #player-button.playing {
-    background-color: purple;
-  }
-  #strength-button.enabled {
-    background-color: purple;
-  }
-</style>
+<label style="color: white;">Play-pause toggler
+  <input type="checkbox" disabled id="play-pause-toggler" />
+</label>
 
-<button id="player-button" disabled>▶️</button>
-<button id="strength-button">100% Strength</button>
+<label style="color: white;">Audio enhancer toggler
+  <input type="checkbox" disabled id="audio-enhancer-toggler" />
+</label>
 
 <!-- To be migrated to the Webflow -->
 
+<style>
+  #play-pause-toggler + span, #audio-enhancer-toggler + span {
+    user-select: none;
+  }
+</style>
+
 <canvas id="webgl" style="position: absolute; inset: 0; z-index: -1"></canvas>
 
-<script
-  async
-  src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"
-></script>
+<script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
 
 <script type="importmap">
   {

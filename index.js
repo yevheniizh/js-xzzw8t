@@ -37,7 +37,7 @@ const fragmentShader = `
   const float duration = 8.0;
   const float delay = 1.0;
 
-  uniform bool magicEnabled;
+  uniform bool audioEnhanced;
 
   vec3 convertHsvToRgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -51,7 +51,7 @@ const fragmentShader = `
 
     vec3 color = vec3(1.,1.,1.);
 
-    if( magicEnabled ) color = vec3(vUv,1.);
+    if( audioEnhanced ) color = vec3(vUv,1.);
 
     gl_FragColor = vec4(color, opacity);
   }`;
@@ -71,14 +71,14 @@ class Sketch {
   };
 
   constructor(options) {
+    this.trackHrefs = options.trackHrefs;
+    this.trackHrefEnhanced = this.trackHrefs.enhanced;
+    this.trackHrefUnenhanced = this.trackHrefs.unenhanced;
+
     // Elements
     this.canvas = options.canvas;
-    this.playerButton = options.playerButton;
-    this.strengthButton = options.strengthButton;
-
-    // State
-    this.enabled = false;
-    this.playing = false;
+    this.playPauseToggler = options.playPauseToggler;
+    this.audioEnhancerToggler = options.audioEnhancerToggler;
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
@@ -94,28 +94,21 @@ class Sketch {
     this.scene = new THREE.Scene();
 
     // Renderer
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      alpha: true,
-      antialias: true,
-    });
-    this.renderer.setClearColor(0x222222, 1);
-    this.renderer.setSize(this.width, this.height);
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, alpha: true, antialias: true });
+    this.renderer.setClearColor( 0x222222, 1 );
+    this.renderer.setSize( this.width, this.height ); 
+    this.renderer.setPixelRatio( Math.min( 2, window.devicePixelRatio ) );
 
     // Camera
-    this.camera = new THREE.PerspectiveCamera(
-      85,
-      this.width / this.height,
-      0.1,
-      1000
-    );
+    this.camera = new THREE.PerspectiveCamera( 85, this.width / this.height, 0.1, 1000 );
 
     // Timer
     this.time = 0;
 
+    // Audio
+    this.fftSize = 512; // square of 2
+
     // Initializing
-    this.setupStrengthButtonEvents();
     this.setupMouseEvents();
     this.setupResize();
     this.setupPlayer();
@@ -124,88 +117,58 @@ class Sketch {
   }
 
   setupPlayer() {
-    /**
-     * NOTE: sources must be stored on some CDN!
-     * Easyest way to do this is to push raw audio files to the Github repo
-     * and just prepare the link in the next format (using under-the-hood "jsdelivr" free CDN)
-     * Example: "https://cdn.jsdelivr.net/gh/${user}/${repo}@${branch}/${filepath}"
-     */
-    const tracks = [
-      "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_enhanced_speech.wav",
-      "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_unenhanced_speech.wav",
-    ];
-
-    this.activeAudio;
-    this.inactiveAudio;
-    this.activeAnalizer;
-    this.loadedCount = 0; // how many tags are ready to play through?
-
-    // First track
-    this.audioLoader1 = new THREE.AudioLoader();
-    this.listener1 = new THREE.AudioListener();
-    this.audio1 = new THREE.Audio(this.listener1);
-    this.audioLoader1.load(tracks[0], (buffer) => {
-      this.audio1.setBuffer(buffer);
-      this.loadedCount = this.loadedCount + 1;
-      if( this.loadedCount === tracks.length ) this.onload();
-    });
-    this.analizer1 = new THREE.AudioAnalyser(this.audio1, 512);
-
-    // Second track
-    this.audioLoader2 = new THREE.AudioLoader();
-    this.listener2 = new THREE.AudioListener();
-    this.audio2 = new THREE.Audio(this.listener2);
-    this.audioLoader2.load(tracks[1], (buffer) => {
-      this.audio2.setBuffer(buffer);
-      this.loadedCount = this.loadedCount + 1;
-      if( this.loadedCount === tracks.length ) this.onload();
-    });
-    this.analizer2 = new THREE.AudioAnalyser(this.audio2, 512);
+    this.loadedTracksCount = 0;
+    this.trackEnhanced = this.prepareTrack( this.trackHrefEnhanced );
+    this.trackUnenhanced = this.prepareTrack( this.trackHrefUnenhanced );
   }
 
-  onload() {
-    this.activeAudio = this.audio1;
-    this.inactiveAudio = this.audio2;
-    this.activeAnalizer = this.analizer1;
-    this.playerButton.disabled = false;
-    this.playerButton.addEventListener('click', () => {
-      if (this.activeAudio.isPlaying) {
-        this.activeAudio.pause();
-        this.inactiveAudio.pause();
-        this.inactiveAudio.setVolume( 0 );
-
-        this.playerButton.classList.remove('playing');
-        this.playerButton.textContent = '▶️'; // for local testing purposes
-      } else {
-        this.activeAudio.play();
-        this.inactiveAudio.play();
-        this.inactiveAudio.setVolume( 0 );
-
-        this.playerButton.classList.add('playing');
-        this.playerButton.textContent = '⏸️'; // for local testing purposes
-      }
+  prepareTrack(href) {
+    const loader = new THREE.AudioLoader();
+    const listener = new THREE.AudioListener();
+    const audio = new THREE.Audio( listener );
+    loader.load( href, ( buffer ) => {
+      audio.setBuffer( buffer );
+      audio.setLoop( true );
+      this.loadedTracksCount = this.loadedTracksCount + 1;
+      if( this.loadedTracksCount === Object.keys( this.trackHrefs ).length ) this.onAllTracksLoad();
     });
+    const analizer = new THREE.AudioAnalyser( audio, this.fftSize );
+
+    return ({ audio, analizer });
   }
 
-  setupStrengthButtonEvents() {
-    this.strengthButton.addEventListener('click', () => {
-      this.enabled = !this.enabled;
-      if ( this.enabled ) {
-        this.strengthButton.classList.add('enabled');
-        this.activeAudio = this.audio1;
-        this.activeAudio.setVolume( 0.5 );
-        this.inactiveAudio = this.audio2;
-        this.inactiveAudio.setVolume( 0 );
-        this.activeAnalizer = this.analizer1;
+  onAllTracksLoad() {
+    this.activeTrack = this.trackUnenhanced;
+    this.inactiveTrack = this.trackEnhanced;
+    this.inactiveTrack.audio.setVolume( 0 );
+
+    // Make togglers clickable on tracks load
+    this.playPauseToggler.disabled = false;
+    this.audioEnhancerToggler.disabled = false;
+
+    this.playPauseToggler.addEventListener( 'click', () => {
+      if ( this.activeTrack.audio.isPlaying ) {
+        this.activeTrack.audio.pause();
+        this.inactiveTrack.audio.pause();
       } else {
-        this.strengthButton.classList.remove('enabled');
-        this.activeAudio = this.audio2;
-        this.activeAudio.setVolume( 0.5 );
-        this.inactiveAudio = this.audio1;
-        this.inactiveAudio.setVolume( 0 );
-        this.activeAnalizer = this.analizer2;
+        this.activeTrack.audio.play();
+        this.inactiveTrack.audio.play();
       }
-    });
+    } );
+
+    this.audioEnhancerToggler.addEventListener( 'click', () => {
+      if ( this.audioEnhancerToggler.checked ) {
+        this.activeTrack = this.trackEnhanced;
+        this.activeTrack.audio.setVolume( 0.5 );
+        this.inactiveTrack = this.trackUnenhanced;
+        this.inactiveTrack.audio.setVolume( 0 );
+      } else {
+        this.activeTrack = this.trackUnenhanced;
+        this.activeTrack.audio.setVolume( 0.5 );
+        this.inactiveTrack = this.trackEnhanced;
+        this.inactiveTrack.audio.setVolume( 0 );
+      }
+    } );
   }
 
   setupMouseEvents() {
@@ -222,7 +185,7 @@ class Sketch {
       uniforms: {
         time: { value: 0 },
         position: { value: 0 },
-        magicEnabled: { value: 0 },
+        audioEnhanced: { value: 0 },
         tAudioData: { value: new Uint8Array() },
       },
       vertexShader,
@@ -245,11 +208,11 @@ class Sketch {
     this.time += 0.02;
 
     this.material.uniforms.time.value = this.time;
-    this.material.uniforms.magicEnabled.value = this.enabled;
+    this.material.uniforms.audioEnhanced.value = this.audioEnhancerToggler.checked;
 
-    if (this.activeAnalizer) {
-      this.activeAnalizer.getFrequencyData();
-      this.material.uniforms.tAudioData.value = this.activeAnalizer.data;
+    if (this.activeTrack?.analizer) {
+      this.activeTrack.analizer.getFrequencyData();
+      this.material.uniforms.tAudioData.value = this.activeTrack.analizer.data;
     }
 
     // Move camera on mousemove
@@ -264,7 +227,17 @@ class Sketch {
 }
 
 new Sketch({
+  /**
+   * NOTE: sources must be stored on some CDN!
+   * The easiest way to do this is to upload raw audio files to the Github repo
+   * and just prepare the link in the following format "https://cdn.jsdelivr.net/gh/${user}/${repo}@${branch}/${filepath}"
+   * ( "jsdelivr" will take care of the free CDN under-the-hood )
+   * */
+  trackHrefs: {
+    enhanced:   "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_enhanced_speech.wav",
+    unenhanced: "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_unenhanced_speech.wav",
+  },
   canvas: document.getElementById('webgl'),
-  playerButton: document.getElementById('player-button'),
-  strengthButton: document.getElementById('strength-button'),
+  playPauseToggler: document.getElementById('play-pause-toggler'),
+  audioEnhancerToggler: document.getElementById('audio-enhancer-toggler'),
 });
