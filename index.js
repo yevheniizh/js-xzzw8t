@@ -187,10 +187,10 @@ class Sketch {
 
     this.mesh.scale.x = 0.5;
     this.mesh.scale.y = 0.25;
-    this.mesh.scale.z = 0.15;
-    this.mesh.position.y = 2.5;
+    this.mesh.scale.z = 0.2;
+    this.mesh.position.y = 2;
     this.mesh.position.z = -10;
-    this.mesh.rotation.set(-(Math.PI / 2.6), 0, 0);
+    this.mesh.rotation.set(-(Math.PI / 3), 0, 0);
   }
 
   render() {
