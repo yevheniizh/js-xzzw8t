@@ -108,8 +108,7 @@ class Sketch {
     // Camera
     this.camera = new THREE.PerspectiveCamera( 85, this.width / this.height, 0.1, 1000 );
 
-    // Post Processing
-    {
+    { // POST PROCESSING
       // Add the effectComposer
       this.composer = new EffectComposer( this.renderer );
       this.composer.setSize( window.innerWidth, window.innerHeight );
@@ -122,16 +121,38 @@ class Sketch {
       this.renderScene = new RenderPass( this.scene, this.camera );
       this.composer.addPass( this.renderScene );
 
-      // Blur
-      this.bloomPass = new UnrealBloomPass(
-        new THREE.Vector2( window.innerWidth, window.innerHeight ),
-        1.5, 0.4, 0.85
-      );
-      this.bloomPass.threshold = 0;
-      this.bloomPass.strength = 1;
-      this.bloomPass.radius = 1.5;
+      
+      { // CHROMATIC ABBERATION
+        /**
+         * Add the rgbShift pass to the composer
+         * This pass will be responsible for handling the rgbShift effect
+         */
+        this.rgbShiftPass = new ShaderPass(RGBShiftShader);
+        this.rgbShiftPass.uniforms["amount"].value = 0.00025;
+        this.rgbShiftPass.enabled = true;
+        this.composer.addPass( this.rgbShiftPass );
+    
+        /**
+         * Add the gammaCorrection pass to the composer to fix
+         * the color issues
+        */ 
+        this.gammaCorrectionPass = new ShaderPass(GammaCorrectionShader);
+        this.composer.addPass( this.gammaCorrectionPass );
+      }
 
-      this.composer.addPass( this.bloomPass );
+      // this.renderer.toneMappingExposure = 0;
+      // this.renderer.toneMapping = THREE.CineonToneMapping;
+      // this.renderer.toneMapping = THREE.LinearToneMapping;
+      // this.renderer.toneMapping = THREE.ReinhardToneMapping; // goes from center
+
+      { // BLUR
+        this.bloomPass = new UnrealBloomPass(
+          new THREE.Vector2( window.innerWidth, window.innerHeight ),
+          1, 1.5, 0,
+        );
+        this.bloomPass.enabled = false;
+        this.composer.addPass( this.bloomPass );
+      }
     }
 
     // Timer
@@ -194,11 +215,15 @@ class Sketch {
         this.activeTrack.audio.setVolume( 0.5 );
         this.inactiveTrack = this.trackUnenhanced;
         this.inactiveTrack.audio.setVolume( 0 );
+        this.bloomPass.enabled = true;
+        this.rgbShiftPass.enabled = false;
       } else {
         this.activeTrack = this.trackUnenhanced;
         this.activeTrack.audio.setVolume( 0.5 );
         this.inactiveTrack = this.trackEnhanced;
         this.inactiveTrack.audio.setVolume( 0 );
+        this.bloomPass.enabled = false;
+        this.rgbShiftPass.enabled = true;
       }
     } );
   }
@@ -219,7 +244,7 @@ class Sketch {
         position: { value: 0 },
         audioEnhanced: { value: 0 },
         tAudioData: { value: new Uint8Array() },
-      },
+    },
       vertexShader,
       fragmentShader,
       transparent: true,
