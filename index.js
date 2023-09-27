@@ -33,7 +33,7 @@ const vertexShader = `
     float sin1 = sin((position.x + position.y) * 0.2 + uTime * uWavesSpeed);
     float sin2 = sin((position.x - position.y) * 0.2 + uTime * uWavesSpeed);
     float sin3 = sin((position.x + position.y) * -0.25 + uTime * uWavesSpeed);
-    vec3 updatePosition = vec3(position.x, position.y, z + sin1 * 0.25 + sin2 * 0.25 + sin3 * 0.1);
+    vec3 updatePosition = vec3(position.x, position.y, z);
 
     vec4 modelPosition = modelMatrix * vec4(updatePosition, 1.0);
 
@@ -52,8 +52,8 @@ const fragmentShader = `
   varying vec2 vUv;
   varying vec3 vPosition;
   uniform float uTime;
-  const float duration = 8.0;
-  const float delay = 0.25;
+  const float duration = 2.0;
+  const float delay = 0.0;
   uniform bool audioEnhanced;
 
   uniform vec3 uDepthColor;
@@ -61,11 +61,11 @@ const fragmentShader = `
   varying float vElevation;
 
   void main() {
-    float now = clamp((uTime - delay) / duration, 0.0, 1.0);
+    float now = clamp((uTime - delay) / duration, 0.1, 1.0);
     float opacity = (1.0 - length(vPosition.xy / vec2(32.0))) * now;
-
+    
     vec3 color = mix(uDepthColor, uSurfaceColor, vElevation * 2.5 + 0.75);
-
+    
     if( audioEnhanced ) color = vec3(vUv,1.);
 
     gl_FragColor = vec4(color, opacity);
@@ -151,7 +151,7 @@ class Sketch {
       // this.renderer.toneMapping = THREE.CineonToneMapping;
       // this.renderer.toneMapping = THREE.LinearToneMapping;
       // this.renderer.toneMapping = THREE.ReinhardToneMapping; // goes from center
-
+      
       { // BLUR
         this.bloomPass = new UnrealBloomPass(
           new THREE.Vector2( window.innerWidth, window.innerHeight ),
