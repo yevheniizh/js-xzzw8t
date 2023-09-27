@@ -6,16 +6,18 @@ import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader";
 import { GammaCorrectionShader } from "three/examples/jsm/shaders/GammaCorrectionShader";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
 
-
 const vertexShader = `
   varying vec2 vUv;
   varying vec3 vPosition;
   varying float x;
   varying float y;
   varying float z;
-
-  uniform float time;
   uniform float[64] tAudioData;
+
+  uniform float uTime;
+  uniform float uWavesElevation;
+  uniform float uWavesSpeed;
+  varying float vElevation;
 
   void main() {
     vUv = uv;
@@ -29,28 +31,41 @@ const vertexShader = `
 
     z = sin(tAudioData[int(floor_x)] / 32.0 + tAudioData[int(floor_y)] / 32.0) * 0.75;
 
-    float sin1 = sin((position.x + position.y) * 0.2 + time * 0.5);
-    float sin2 = sin((position.x - position.y) * 0.4 + time * 0.5);
-    float sin3 = sin((position.x + position.y) * -0.6 + time);
-    vec3 updatePosition = vec3(position.x, position.y, z + sin1 * 0.5 + sin2 * 0.5 + sin3 * 0.1);
+    float sin1 = sin((position.x + position.y) * 0.2 + uTime * uWavesSpeed);
+    float sin2 = sin((position.x - position.y) * 0.2 + uTime * uWavesSpeed);
+    float sin3 = sin((position.x + position.y) * -0.25 + uTime * uWavesSpeed);
+    vec3 updatePosition = vec3(position.x, position.y, z + sin1 * 0.25 + sin2 * 0.25 + sin3 * 0.1);
 
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(updatePosition, 1.0);
+    vec4 modelPosition = modelMatrix * vec4(updatePosition, 1.0);
+
+    // Elevation
+    float elevation = sin1 * sin2 * sin3 * uWavesElevation;
+
+    modelPosition.y += elevation;
+
+    gl_Position = projectionMatrix * viewMatrix * modelPosition;
+
+    // Varyings
+    vElevation = elevation;
   }`;
 
 const fragmentShader = `
   varying vec2 vUv;
   varying vec3 vPosition;
-  uniform float time;
+  uniform float uTime;
   const float duration = 8.0;
   const float delay = 1.0;
-
   uniform bool audioEnhanced;
 
+  uniform vec3 uDepthColor;
+  uniform vec3 uSurfaceColor;
+  varying float vElevation;
+
   void main() {
-    float now = clamp((time - delay) / duration, 0.0, 1.0);
+    float now = clamp((uTime - delay) / duration, 0.0, 1.0);
     float opacity = (1.0 - length(vPosition.xy / vec2(32.0))) * now;
 
-    vec3 color = vec3(1.,1.,1.);
+    vec3 color = mix(uDepthColor, uSurfaceColor, vElevation * 2.5 + 0.75);
 
     if( audioEnhanced ) color = vec3(vUv,1.);
 
@@ -148,7 +163,7 @@ class Sketch {
       { // BLUR
         this.bloomPass = new UnrealBloomPass(
           new THREE.Vector2( window.innerWidth, window.innerHeight ),
-          1, 1.5, 0,
+          0.5, 5, 0,
         );
         this.bloomPass.enabled = false;
         this.composer.addPass( this.bloomPass );
@@ -240,10 +255,14 @@ class Sketch {
     this.geometry = new THREE.PlaneGeometry(64, 64, 64, 64);
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        time: { value: 0 },
+        uTime: { value: 0 },
         position: { value: 0 },
         audioEnhanced: { value: 0 },
         tAudioData: { value: new Uint8Array() },
+        uWavesElevation: { value: 0.25 },
+        uWavesSpeed: { value: 0.25 },
+        uDepthColor: { value: new THREE.Color( 'grey' ) },
+        uSurfaceColor: { value: new THREE.Color( 'white' ) },
     },
       vertexShader,
       fragmentShader,
@@ -264,7 +283,7 @@ class Sketch {
   render() {
     this.time += 0.02;
 
-    this.material.uniforms.time.value = this.time;
+    this.material.uniforms.uTime.value = this.time;
     this.material.uniforms.audioEnhanced.value = this.audioEnhancerToggler.checked;
 
     if (this.activeTrack?.analizer) {
