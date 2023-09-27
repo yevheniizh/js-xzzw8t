@@ -3,7 +3,6 @@ import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass';
 import {EffectComposer} from 'three/examples/jsm/postprocessing/EffectComposer';
 import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader";
-import { GammaCorrectionShader } from "three/examples/jsm/shaders/GammaCorrectionShader";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
 
 const vertexShader = `
@@ -54,7 +53,7 @@ const fragmentShader = `
   varying vec3 vPosition;
   uniform float uTime;
   const float duration = 8.0;
-  const float delay = 1.0;
+  const float delay = 0.25;
   uniform bool audioEnhanced;
 
   uniform vec3 uDepthColor;
@@ -143,16 +142,9 @@ class Sketch {
          * This pass will be responsible for handling the rgbShift effect
          */
         this.rgbShiftPass = new ShaderPass(RGBShiftShader);
-        this.rgbShiftPass.uniforms["amount"].value = 0.00025;
+        this.rgbShiftPass.uniforms["amount"].value = 0.0001;
         this.rgbShiftPass.enabled = true;
         this.composer.addPass( this.rgbShiftPass );
-    
-        /**
-         * Add the gammaCorrection pass to the composer to fix
-         * the color issues
-        */ 
-        this.gammaCorrectionPass = new ShaderPass(GammaCorrectionShader);
-        this.composer.addPass( this.gammaCorrectionPass );
       }
 
       // this.renderer.toneMappingExposure = 0;
@@ -259,7 +251,7 @@ class Sketch {
         position: { value: 0 },
         audioEnhanced: { value: 0 },
         tAudioData: { value: new Uint8Array() },
-        uWavesElevation: { value: 0.25 },
+        uWavesElevation: { value: 0.35 },
         uWavesSpeed: { value: 0.25 },
         uDepthColor: { value: new THREE.Color( 'grey' ) },
         uSurfaceColor: { value: new THREE.Color( 'white' ) },
