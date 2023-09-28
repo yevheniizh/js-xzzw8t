@@ -1,4 +1,11 @@
 import * as THREE from 'three';
+import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass';
+import {EffectComposer} from 'three/examples/jsm/postprocessing/EffectComposer';
+import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader";
+import { GammaCorrectionShader } from "three/examples/jsm/shaders/GammaCorrectionShader";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
+
 
 const vertexShader = `
   varying vec2 vUv;
@@ -39,12 +46,6 @@ const fragmentShader = `
 
   uniform bool audioEnhanced;
 
-  vec3 convertHsvToRgb(vec3 c) {
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-  }
-
   void main() {
     float now = clamp((time - delay) / duration, 0.0, 1.0);
     float opacity = (1.0 - length(vPosition.xy / vec2(32.0))) * now;
@@ -65,9 +66,15 @@ class Sketch {
   onResize = () => {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
-    this.renderer.setSize(this.width, this.height);
+
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
+
+    this.renderer.setSize(this.width, this.height);
+    this.renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
+    
+    this.composer.setSize(this.width, this.height);
+    this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
   };
 
   constructor(options) {
@@ -94,13 +101,38 @@ class Sketch {
     this.scene = new THREE.Scene();
 
     // Renderer
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, alpha: true, antialias: true });
-    this.renderer.setClearColor( 0x222222, 1 );
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setSize( this.width, this.height ); 
     this.renderer.setPixelRatio( Math.min( 2, window.devicePixelRatio ) );
 
     // Camera
     this.camera = new THREE.PerspectiveCamera( 85, this.width / this.height, 0.1, 1000 );
+
+    // Post Processing
+    {
+      // Add the effectComposer
+      this.composer = new EffectComposer( this.renderer );
+      this.composer.setSize( window.innerWidth, window.innerHeight );
+      this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
+  
+      /**
+       * Add the render path to the composer
+       * This pass will take care of rendering the final scene
+       */
+      this.renderScene = new RenderPass( this.scene, this.camera );
+      this.composer.addPass( this.renderScene );
+
+      // Blur
+      this.bloomPass = new UnrealBloomPass(
+        new THREE.Vector2( window.innerWidth, window.innerHeight ),
+        1.5, 0.4, 0.85
+      );
+      this.bloomPass.threshold = 0;
+      this.bloomPass.strength = 1;
+      this.bloomPass.radius = 1.5;
+
+      this.composer.addPass( this.bloomPass );
+    }
 
     // Timer
     this.time = 0;
@@ -221,7 +253,7 @@ class Sketch {
     this.camera.rotation.x += 0.025 * (this.target.y - this.camera.rotation.x);
     this.camera.rotation.y += 0.025 * (this.target.x - this.camera.rotation.y);
 
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render();
     window.requestAnimationFrame(this.render.bind(this));
   }
 }
