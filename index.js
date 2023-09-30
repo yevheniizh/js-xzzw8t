@@ -52,23 +52,44 @@ const fragmentShader = `
   varying vec2 vUv;
   varying vec3 vPosition;
   uniform float uTime;
+  uniform float uStartTime; 
   const float duration = 2.0;
   const float delay = 0.0;
-  uniform bool audioEnhanced;
+  uniform bool uAudioEnhanced;
+  uniform bool uAudioEnhancedInitially;
 
   uniform vec3 uDepthColor;
   uniform vec3 uSurfaceColor;
   varying float vElevation;
 
+  // note: sqrt(pow(p.x, 2.0) + pow(p-y, 2.0)) - г;
+  float sdfCircle(vec2 p, float r) {
+    return length(p) - r;
+  }
+
   void main() {
+    // Initial appearing
     float now = clamp((uTime - delay) / duration, 0.1, 1.0);
     float opacity = (1.0 - length(vPosition.xy / vec2(32.0))) * now;
-    
-    vec3 color = mix(uDepthColor, uSurfaceColor, vElevation * 2.5 + 0.75);
-    
-    if( audioEnhanced ) color = vec3(vUv,1.);
 
-    gl_FragColor = vec4(color, opacity);
+    // Time
+    float speed = 0.5;
+    float w = clamp((uTime-uStartTime) / speed, 0., 1.);
+    w = mix(float(uAudioEnhancedInitially)*1.0-w, w, float(uAudioEnhanced));
+
+    // Colors
+    vec3 defaultColor = mix(uDepthColor, uSurfaceColor, vElevation * 2.5 + 0.75);
+    vec3 enhancedColor = vec3(vUv, 1.0);
+
+    // Define the animation speed
+    float radius = 16.0 * w;
+    float distance = sdfCircle( vPosition.xy, radius );
+
+    // Calculate the gradient based on the distance from the center
+    vec3 gradientColor = mix(enhancedColor, defaultColor, step(radius, distance));
+    
+    // Set the fragment color
+    gl_FragColor = vec4(gradientColor, opacity);
   }`;
 
 class Sketch {
@@ -135,7 +156,6 @@ class Sketch {
       this.renderScene = new RenderPass( this.scene, this.camera );
       this.composer.addPass( this.renderScene );
 
-      
       { // CHROMATIC ABBERATION
         /**
          * Add the rgbShift pass to the composer
@@ -143,22 +163,16 @@ class Sketch {
          */
         this.rgbShiftPass = new ShaderPass(RGBShiftShader);
         this.rgbShiftPass.uniforms["amount"].value = 0.0001;
-        this.rgbShiftPass.enabled = true;
         this.composer.addPass( this.rgbShiftPass );
       }
 
-      // this.renderer.toneMappingExposure = 0;
-      // this.renderer.toneMapping = THREE.CineonToneMapping;
-      // this.renderer.toneMapping = THREE.LinearToneMapping;
-      // this.renderer.toneMapping = THREE.ReinhardToneMapping; // goes from center
-      
       { // BLUR
         this.bloomPass = new UnrealBloomPass(
           new THREE.Vector2( window.innerWidth, window.innerHeight ),
-          0.5, 5, 0,
+          0.3, 5, 0,
         );
         this.bloomPass.enabled = false;
-        this.composer.addPass( this.bloomPass );
+        this.composer.addPass( this.bloomPass ); // To be deleted?
       }
     }
 
@@ -219,19 +233,22 @@ class Sketch {
     this.audioEnhancerToggler.addEventListener( 'click', () => {
       if ( this.audioEnhancerToggler.checked ) {
         this.activeTrack = this.trackEnhanced;
-        this.activeTrack.audio.setVolume( 0.5 );
         this.inactiveTrack = this.trackUnenhanced;
-        this.inactiveTrack.audio.setVolume( 0 );
-        this.bloomPass.enabled = true;
         this.rgbShiftPass.enabled = false;
+        this.bloomPass.enabled = true;
+        this.material.uniforms.uAudioEnhanced.value = true;
+        this.material.uniforms.uAudioEnhancedInitially.value = true;
       } else {
         this.activeTrack = this.trackUnenhanced;
-        this.activeTrack.audio.setVolume( 0.5 );
         this.inactiveTrack = this.trackEnhanced;
-        this.inactiveTrack.audio.setVolume( 0 );
-        this.bloomPass.enabled = false;
         this.rgbShiftPass.enabled = true;
+        this.bloomPass.enabled = false;
+        this.material.uniforms.uAudioEnhanced.value = false;
       }
+
+      this.activeTrack.audio.setVolume( 0.5 );
+      this.inactiveTrack.audio.setVolume( 0 );
+      this.material.uniforms.uStartTime.value = this.time;
     } );
   }
 
@@ -248,8 +265,10 @@ class Sketch {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
+        uStartTime: { value: 0 },
         position: { value: 0 },
-        audioEnhanced: { value: 0 },
+        uAudioEnhanced: { value: false },
+        uAudioEnhancedInitially: { value: false },
         tAudioData: { value: new Uint8Array() },
         uWavesElevation: { value: 0.35 },
         uWavesSpeed: { value: 0.25 },
@@ -274,10 +293,9 @@ class Sketch {
 
   render() {
     this.time += 0.02;
-
     this.material.uniforms.uTime.value = this.time;
-    this.material.uniforms.audioEnhanced.value = this.audioEnhancerToggler.checked;
 
+    // Pass audio data to shaders
     if (this.activeTrack?.analizer) {
       this.activeTrack.analizer.getFrequencyData();
       this.material.uniforms.tAudioData.value = this.activeTrack.analizer.data;
