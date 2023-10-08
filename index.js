@@ -187,7 +187,18 @@ class Sketch {
     this.setupResize();
     this.setupPlayer();
     this.addObjects();
-    this.render();
+    this.render()
+    this.capturer = new CCapture( {
+      format: 'webm',
+      framerate: 60,
+    } );
+
+    this.capturer.start();
+
+    setTimeout(() => {
+      // default save, will download automatically a file called {name}.extension (webm/gif/tar)
+      this.capturer.save();
+    }, 5000);
   }
 
   setupPlayer() {
@@ -309,6 +320,7 @@ class Sketch {
 
     this.composer.render();
     window.requestAnimationFrame(this.render.bind(this));
+    if (this.capturer) this.capturer.capture(this.renderer.domElement);
   }
 }
 
