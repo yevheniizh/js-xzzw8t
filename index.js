@@ -5,6 +5,8 @@ import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
 
+import './styles.css';
+
 const vertexShader = `
   varying vec2 vUv;
   varying vec3 vPosition;
@@ -116,6 +118,8 @@ class Sketch {
     this.trackHrefs = options.trackHrefs;
     this.trackHrefEnhanced = this.trackHrefs.enhanced;
     this.trackHrefUnenhanced = this.trackHrefs.unenhanced;
+    this.playCheckbox = document.querySelector('.play-checkbox');
+    this.audioToggler = document.querySelector('.audio-enhancer-toggler');
 
     // Elements
     this.canvas = options.canvas;
@@ -188,17 +192,17 @@ class Sketch {
     this.setupPlayer();
     this.addObjects();
     this.render()
-    this.capturer = new CCapture( {
-      format: 'webm',
-      framerate: 60,
-    } );
+    // this.capturer = new CCapture( {
+    //   format: 'webm',
+    //   framerate: 30,
+    // } );
 
-    this.capturer.start();
+    // this.capturer.start();
 
-    setTimeout(() => {
-      // default save, will download automatically a file called {name}.extension (webm/gif/tar)
-      this.capturer.save();
-    }, 5000);
+    // setTimeout(() => {
+    //   // default save, will download automatically a file called {name}.extension (webm/gif/tar)
+    //   this.capturer.save();
+    // }, 5000);
   }
 
   setupPlayer() {
@@ -235,9 +239,11 @@ class Sketch {
       if ( this.activeTrack.audio.isPlaying ) {
         this.activeTrack.audio.pause();
         this.inactiveTrack.audio.pause();
+        this.playCheckbox.classList.remove( 'w--redirected-checked' );
       } else {
         this.activeTrack.audio.play();
         this.inactiveTrack.audio.play();
+        this.playCheckbox.classList.add( 'w--redirected-checked' );
       }
     } );
 
@@ -249,12 +255,15 @@ class Sketch {
         this.bloomPass.enabled = true;
         this.material.uniforms.uAudioEnhanced.value = true;
         this.material.uniforms.uAudioEnhancedInitially.value = true;
+        this.audioToggler.classList.add( 'w--redirected-checked' );
+        console.log('aaa', this.playCheckbox)
       } else {
         this.activeTrack = this.trackUnenhanced;
         this.inactiveTrack = this.trackEnhanced;
         this.rgbShiftPass.enabled = true;
         this.bloomPass.enabled = false;
         this.material.uniforms.uAudioEnhanced.value = false;
+        this.audioToggler.classList.remove( 'w--redirected-checked' );
       }
 
       this.activeTrack.audio.setVolume( 0.5 );
