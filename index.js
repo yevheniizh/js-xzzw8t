@@ -95,6 +95,9 @@ const fragmentShader = `
   }`;
 
 class Sketch {
+
+  /* Event handlers */
+
   onMouseMove = (event) => {
     this.mouseX = event.clientX - this.windowHalfX;
     this.mouseY = event.clientY - this.windowHalfY;
@@ -114,17 +117,24 @@ class Sketch {
     this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
   };
 
+  /* Constructor */
+
   constructor(options) {
-    this.trackHrefs = options.trackHrefs;
-    this.trackHrefEnhanced = this.trackHrefs.enhanced;
-    this.trackHrefUnenhanced = this.trackHrefs.unenhanced;
+    /**
+     * NOTE: sources must be stored on some CDN!
+     * The easiest way to do this is to upload raw audio files to the Github repo
+     * and just prepare the link in the following format "https://cdn.jsdelivr.net/gh/${user}/${repo}@${branch}/${filepath}"
+     * ( "jsdelivr" will take care of the free CDN under-the-hood )
+     * */
+    this.trackHrefs = {
+      enhanced:   "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_enhanced_speech.wav",
+      unenhanced: "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_unenhanced_speech.wav",
+    };
+    this.canvas = document.getElementById('webgl');
+    this.playPauseToggler = document.getElementById('play-pause-toggler');
+    this.audioEnhancerToggler = document.getElementById('audio-enhancer-toggler');
     this.playCheckbox = document.querySelector('.play-checkbox');
     this.audioToggler = document.querySelector('.audio-enhancer-toggler');
-
-    // Elements
-    this.canvas = options.canvas;
-    this.playPauseToggler = options.playPauseToggler;
-    this.audioEnhancerToggler = options.audioEnhancerToggler;
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
@@ -147,38 +157,7 @@ class Sketch {
     // Camera
     this.camera = new THREE.PerspectiveCamera( 85, this.width / this.height, 0.1, 1000 );
 
-    { // POST PROCESSING
-      // Add the effectComposer
-      this.composer = new EffectComposer( this.renderer );
-      this.composer.setSize( window.innerWidth, window.innerHeight );
-      this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
-  
-      /**
-       * Add the render path to the composer
-       * This pass will take care of rendering the final scene
-       */
-      this.renderScene = new RenderPass( this.scene, this.camera );
-      this.composer.addPass( this.renderScene );
-
-      { // CHROMATIC ABBERATION
-        /**
-         * Add the rgbShift pass to the composer
-         * This pass will be responsible for handling the rgbShift effect
-         */
-        this.rgbShiftPass = new ShaderPass(RGBShiftShader);
-        this.rgbShiftPass.uniforms["amount"].value = 0.0001;
-        this.composer.addPass( this.rgbShiftPass );
-      }
-
-      { // BLUR
-        this.bloomPass = new UnrealBloomPass(
-          new THREE.Vector2( window.innerWidth, window.innerHeight ),
-          0.3, 5, 0,
-        );
-        this.bloomPass.enabled = false;
-        this.composer.addPass( this.bloomPass ); // To be deleted?
-      }
-    }
+    this.postProcessing();
 
     // Timer
     this.time = 0;
@@ -192,50 +171,111 @@ class Sketch {
     this.setupPlayer();
     this.addObjects();
     this.render()
-    // this.capturer = new CCapture( {
-    //   format: 'webm',
-    //   framerate: 30,
-    // } );
+  }
 
-    // this.capturer.start();
+  postProcessing() {
+    // Add the effectComposer
+    this.composer = new EffectComposer( this.renderer );
+    this.composer.setSize( window.innerWidth, window.innerHeight );
+    this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
 
-    // setTimeout(() => {
-    //   // default save, will download automatically a file called {name}.extension (webm/gif/tar)
-    //   this.capturer.save();
-    // }, 5000);
+    /**
+     * Add the render pass to the composer. This pass will take care of rendering the final scene
+     */
+    this.renderScene = new RenderPass( this.scene, this.camera );
+    this.composer.addPass( this.renderScene );
+
+    { // RGBSHIFT
+      this.rgbShiftPass = new ShaderPass(RGBShiftShader);
+      this.rgbShiftPass.uniforms["amount"].value = 0.0001;
+      this.composer.addPass( this.rgbShiftPass );
+    }
+
+    { // BLUR
+      this.bloomPass = new UnrealBloomPass(
+        new THREE.Vector2( window.innerWidth, window.innerHeight ),
+        0.3, 5, 0,
+      );
+      this.bloomPass.enabled = false;
+      this.composer.addPass( this.bloomPass );
+    }
   }
 
   setupPlayer() {
-    this.loadedTracksCount = 0;
-    this.trackEnhanced = this.prepareTrack( this.trackHrefEnhanced );
-    this.trackUnenhanced = this.prepareTrack( this.trackHrefUnenhanced );
+    this.audioContext = new AudioContext();
+
+    this.gainNode = this.audioContext.createGain();
+    this.gainNode.gain.value = 0.5; // volume
+    this.gainNode.connect(this.audioContext.destination);
+
+    this.samplePaths = [this.trackHrefs.unenhanced, this.trackHrefs.enhanced];
+    this.samples = [];
+
+    console.log(this.samplePaths);
+  
+    this.setupSamples(this.samplePaths).then(response => {
+      this.samples = response;
+      // this.playback(this.samples[0]).start();
+      this.trackUnenhanced = this.playback(this.samples[0]);
+      this.trackEnhanced = this.playback(this.samples[1]);
+
+      this.prepareTrack()
+
+      this.trackUnenhanced.start()
+    })
+  }
+
+  async getFile(filePath) {
+    const response = await fetch(filePath);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    return audioBuffer;
+  }
+
+  async setupSamples(paths) {
+    console.log ("Setting up samples");
+    const audioBuffers = [];
+    for (const path of paths) {
+      const sample = await this.getFile(path);
+      audioBuffers.push(sample);
+    }
+    console.log("Setting up done");
+    return audioBuffers;
   }
 
   prepareTrack(href) {
-    const loader = new THREE.AudioLoader();
-    const listener = new THREE.AudioListener();
-    const audio = new THREE.Audio( listener );
-    loader.load( href, ( buffer ) => {
-      audio.setBuffer( buffer );
-      audio.setLoop( true );
-      this.loadedTracksCount = this.loadedTracksCount + 1;
-      if( this.loadedTracksCount === Object.keys( this.trackHrefs ).length ) this.onAllTracksLoad();
-    });
-    const analizer = new THREE.AudioAnalyser( audio, this.fftSize );
+    this.audioAnalyser = this.audioContext.createAnalyser();
+    this.trackUnenhanced.connect(this.audioAnalyser);
+    this.audioAnalyser.connect(this.audioContext.destination);
+    this.audioAnalyser.fftSize = 512;
+    this.audioBufferLength = this.audioAnalyser.frequencyBinCount;
+    this.audioDataArray = new Uint8Array(this.audioBufferLength);
 
-    return ({ audio, analizer });
+    return ({ audio: this.playerNode, analyser: this.audioDataArray });
+    // this.onAllTracksLoad();
+  }
+
+  playback(audioBuffer) {
+    const playSound = this.audioContext.createBufferSource();
+    playSound.buffer = audioBuffer;
+    playSound.loop = true;
+    playSound.connect(this.gainNode);
+    return playSound;
   }
 
   onAllTracksLoad() {
     this.activeTrack = this.trackUnenhanced;
     this.inactiveTrack = this.trackEnhanced;
-    this.inactiveTrack.audio.setVolume( 0 );
 
     // Make togglers clickable on tracks load
     this.playPauseToggler.disabled = false;
     this.audioEnhancerToggler.disabled = false;
+    
+    console.log('tthis.activeTrack',this.activeTrack.audio)
 
     this.playPauseToggler.addEventListener( 'click', () => {
+
+      console.log('this.activeTrack', this.activeTrack)
       if ( this.activeTrack.audio.isPlaying ) {
         this.activeTrack.audio.pause();
         this.inactiveTrack.audio.pause();
@@ -315,36 +355,35 @@ class Sketch {
     this.time += 0.02;
     this.material.uniforms.uTime.value = this.time;
 
-    // Pass audio data to shaders
-    if (this.activeTrack?.analizer) {
-      this.activeTrack.analizer.getFrequencyData();
-      this.material.uniforms.tAudioData.value = this.activeTrack.analizer.data;
+    // // Pass audio data to shaders
+    // if (this.activeTrack?.analizer) {
+    //   this.activeTrack.analizer.getFrequencyData();
+    //   this.material.uniforms.tAudioData.value = this.activeTrack.analizer.data;
+    // }
+
+    // Update sounds data
+    if (this.audioAnalyser) {
+      this.audioAnalyser.getByteFrequencyData(this.audioDataArray);
+      this.material.uniforms.tAudioData.value = this.audioDataArray;
+
+      // console.log('this.audioDataArray', this.audioDataArray);
     }
 
+    // if (this.analyser) {
+    //   this.analyser.getFrequencyData();
+    //   this.material.uniforms.tAudioData.value = this.analyser.data;
+    // }
+    
     // Move camera on mousemove
     this.target.x = (1 - this.mouseX) * 0.0001;
     this.target.y = (1 - this.mouseY) * 0.0001;
     this.camera.rotation.x += 0.025 * (this.target.y - this.camera.rotation.x);
     this.camera.rotation.y += 0.025 * (this.target.x - this.camera.rotation.y);
 
+    // Update render
     this.composer.render();
     window.requestAnimationFrame(this.render.bind(this));
-    if (this.capturer) this.capturer.capture(this.renderer.domElement);
   }
 }
 
-new Sketch({
-  /**
-   * NOTE: sources must be stored on some CDN!
-   * The easiest way to do this is to upload raw audio files to the Github repo
-   * and just prepare the link in the following format "https://cdn.jsdelivr.net/gh/${user}/${repo}@${branch}/${filepath}"
-   * ( "jsdelivr" will take care of the free CDN under-the-hood )
-   * */
-  trackHrefs: {
-    enhanced:   "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_enhanced_speech.wav",
-    unenhanced: "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_unenhanced_speech.wav",
-  },
-  canvas: document.getElementById('webgl'),
-  playPauseToggler: document.getElementById('play-pause-toggler'),
-  audioEnhancerToggler: document.getElementById('audio-enhancer-toggler'),
-});
+new Sketch();
