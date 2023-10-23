@@ -121,6 +121,7 @@ class Sketch {
     this.canvas = options.canvas;
     this.playPauseToggler = options.playPauseToggler;
     this.audioEnhancerToggler = options.audioEnhancerToggler;
+    this.audioProgressBar = options.audioProgressBar;
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
@@ -197,36 +198,49 @@ class Sketch {
   }
 
   prepareTrack(href) {
-    const loader = new THREE.AudioLoader();
     const listener = new THREE.AudioListener();
     const audio = new THREE.Audio( listener );
-    loader.load( href, ( buffer ) => {
-      audio.setBuffer( buffer );
-      audio.setLoop( true );
+    this.context = audio.context;
+    const mediaElement = new Audio( href );
+    mediaElement.crossOrigin = "anonymous";
+    mediaElement.loop = true;
+    mediaElement.onloadeddata = () => {
       this.loadedTracksCount = this.loadedTracksCount + 1;
-      if( this.loadedTracksCount === Object.keys( this.trackHrefs ).length ) this.onAllTracksLoad();
-    });
-    const analizer = new THREE.AudioAnalyser( audio, this.fftSize );
+      // Enable togglers on tracks load
+      if( this.loadedTracksCount === Object.keys( this.trackHrefs ).length ) {
+        this.onAllTracksLoad();
+      };
+    };
 
-    return ({ audio, analizer });
+    audio.setMediaElementSource( mediaElement );
+    const analizer = new THREE.AudioAnalyser( audio, this.fftSize );
+    return ({ audio, analizer, mediaElement });
   }
 
   onAllTracksLoad() {
-    this.activeTrack = this.trackUnenhanced;
-    this.inactiveTrack = this.trackEnhanced;
-    this.inactiveTrack.audio.setVolume( 0 );
-
-    // Make togglers clickable on tracks load
+    // Enable togglers on tracks load
     this.playPauseToggler.disabled = false;
     this.audioEnhancerToggler.disabled = false;
+    this.audioProgressBar.disabled = false;
+    this.audioProgressBar.value = 0;
 
     this.playPauseToggler.addEventListener( 'click', () => {
-      if ( this.activeTrack.audio.isPlaying ) {
-        this.activeTrack.audio.pause();
-        this.inactiveTrack.audio.pause();
+      // Avoid browser autoplay policy https://developer.chrome.com/blog/autoplay/#webaudio
+      // Init all the audio contexts on user interaction
+      if( this.context.state === 'suspended' ) {
+        this.context.resume();
+      
+        this.activeTrack = this.trackUnenhanced;
+        this.inactiveTrack = this.trackEnhanced;
+        this.inactiveTrack.mediaElement.volume = 0;
+      }
+
+      if ( this.activeTrack.mediaElement.paused ) {
+        this.activeTrack.mediaElement.play();
+        this.inactiveTrack.mediaElement.play();
       } else {
-        this.activeTrack.audio.play();
-        this.inactiveTrack.audio.play();
+        this.activeTrack.mediaElement.pause();
+        this.inactiveTrack.mediaElement.pause();
       }
     } );
 
@@ -246,10 +260,29 @@ class Sketch {
         this.material.uniforms.uAudioEnhanced.value = false;
       }
 
-      this.activeTrack.audio.setVolume( 0.5 );
-      this.inactiveTrack.audio.setVolume( 0 );
+      this.activeTrack.mediaElement.volume = 0.5;
+      this.inactiveTrack.mediaElement.volume = 0;
       this.material.uniforms.uStartTime.value = this.time;
     } );
+
+    this.mouseDownOnSlider = false;
+
+    this.trackEnhanced.mediaElement.addEventListener("timeupdate", () => {
+      if (!this.mouseDownOnSlider) {
+        this.audioProgressBar.value = this.trackEnhanced.mediaElement.currentTime / this.trackEnhanced.mediaElement.duration * 100;
+      }
+    });
+    this.audioProgressBar.addEventListener("change", () => {
+      const pct = this.audioProgressBar.value / 100;
+      this.trackEnhanced.mediaElement.currentTime = (this.trackEnhanced.mediaElement.duration || 0) * pct;
+      this.trackUnenhanced.mediaElement.currentTime = (this.trackEnhanced.mediaElement.duration || 0) * pct;
+    });
+    this.audioProgressBar.addEventListener("mousedown", () => {
+      this.mouseDownOnSlider = true;
+    });
+    this.audioProgressBar.addEventListener("mouseup", () => {
+      this.mouseDownOnSlider = false;
+    });
   }
 
   setupMouseEvents() {
@@ -326,4 +359,5 @@ new Sketch({
   canvas: document.getElementById('webgl'),
   playPauseToggler: document.getElementById('play-pause-toggler'),
   audioEnhancerToggler: document.getElementById('audio-enhancer-toggler'),
+  audioProgressBar: document.getElementById('audio-progress-bar'),
 });
