@@ -14,23 +14,26 @@ class Sketch {
   onResize = () => {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
+
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
+
     this.renderer.setSize(this.width, this.height);
     this.renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
+
     this.composer.setSize(this.width, this.height);
     this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
   };
 
   constructor() {
-    this.hrefFix = 'https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_enhanced_speech.wav';
-    this.hrefRaw = 'https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@dev/sample_unenhanced_speech.wav';
+    this.hrefFix = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/Magic-Audio-FIX.mp3";
+    this.hrefRaw = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/Magic-Audio-RAW.mp3";
 
+    // Elements
     this.canvas = document.getElementById('webgl');
     this.playPauseToggler = document.getElementById('play-pause-toggler');
     this.audioEnhancerToggler = document.getElementById('audio-enhancer-toggler');
     this.audioProgressBarContainer = document.getElementById('audio-progress-bar-container');
-
     this.audioProgressBar = document.createElement("input");
     this.audioProgressBar.setAttribute("type", "range");
     this.audioProgressBar.setAttribute("disable", "true");
@@ -39,43 +42,66 @@ class Sketch {
 
     this.audioProgressBarContainer.appendChild(this.audioProgressBar);
 
+    // Sizes
     this.width = window.innerWidth;
     this.height = window.innerHeight;
 
+    // Mouse
     this.target = new THREE.Vector3();
     this.mouseX = 0;
     this.mouseY = 0;
 
+    // Scene
     this.scene = new THREE.Scene();
 
+    // Renderer
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setSize( this.width, this.height ); 
     this.renderer.setPixelRatio( Math.min( 2, window.devicePixelRatio ) );
 
+    // Camera
     this.camera = new THREE.PerspectiveCamera( 85, this.width / this.height, 0.1, 1000 );
 
-    this.composer = new EffectComposer( this.renderer );
-    this.composer.setSize( window.innerWidth, window.innerHeight );
-    this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
+    { // POST PROCESSING
+      // Add the effectComposer
+      this.composer = new EffectComposer( this.renderer );
+      this.composer.setSize( window.innerWidth, window.innerHeight );
+      this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
 
-    this.renderScene = new RenderPass( this.scene, this.camera );
-    this.composer.addPass( this.renderScene );
+      /**
+       * Add the render path to the composer
+       * This pass will take care of rendering the final scene
+       */
+      this.renderScene = new RenderPass( this.scene, this.camera );
+      this.composer.addPass( this.renderScene );
 
-    this.rgbShiftPass = new ShaderPass(RGBShiftShader);
-    this.rgbShiftPass.uniforms["amount"].value = 0.0001;
-    this.composer.addPass( this.rgbShiftPass );
+      { // CHROMATIC ABBERATION
+        /**
+         * Add the rgbShift pass to the composer
+         * This pass will be responsible for handling the rgbShift effect
+         */
+        this.rgbShiftPass = new ShaderPass(RGBShiftShader);
+        this.rgbShiftPass.uniforms["amount"].value = 0.0001;
+        this.composer.addPass( this.rgbShiftPass );
+      }
 
-    this.bloomPass = new UnrealBloomPass(
-      new THREE.Vector2( window.innerWidth, window.innerHeight ),
-      0.3, 5, 0,
-    );
-    this.bloomPass.enabled = false;
-    this.composer.addPass( this.bloomPass );
+      { // BLUR
+        this.bloomPass = new UnrealBloomPass(
+        new THREE.Vector2( window.innerWidth, window.innerHeight ),
+        0.3, 5, 0,
+        );
+        this.bloomPass.enabled = false;
+        this.composer.addPass( this.bloomPass );
+      }
+    }
 
+    // Timer
     this.time = 0;
 
+    // Audio
     this.fftSize = 512;
 
+    // Initializing
     this.setupMouseEvents();
     this.setupResize();
     this.setupPlayer();
@@ -98,6 +124,7 @@ class Sketch {
     mediaElement.loop = true;
     mediaElement.onloadeddata = () => {
       this.tracksReady = this.tracksReady + 1;
+      // Enable togglers on tracks load
       if( this.tracksReady === 2 ) {
         this.onAllTracksLoad();
       };
@@ -109,17 +136,20 @@ class Sketch {
   }
 
   onAllTracksLoad() {
+    // Enable togglers on tracks load
     this.playPauseToggler.disabled = false;
     this.audioEnhancerToggler.disabled = false;
     this.audioProgressBar.disabled = false;
 
+    this.activeTrack = this.trackRaw;
+    this.inactiveTrack = this.trackFix;
+    this.inactiveTrack.mediaElement.volume = 0;
+
     this.playPauseToggler.addEventListener( 'click', () => {
+      // Avoid browser autoplay policy https://developer.chrome.com/blog/autoplay/#webaudio
+      // Init all the audio contexts on user interaction
       if( this.context.state === 'suspended' ) {
         this.context.resume();
-      
-        this.activeTrack = this.trackRaw;
-        this.inactiveTrack = this.trackFix;
-        this.inactiveTrack.mediaElement.volume = 0;
       }
 
       if ( this.activeTrack.mediaElement?.paused ) {
@@ -212,11 +242,13 @@ class Sketch {
     this.time += 0.02;
     this.material.uniforms.uTime.value = this.time;
 
+    // Pass audio data to shaders
     if (this.activeTrack?.analizer) {
       this.activeTrack.analizer.getFrequencyData();
       this.material.uniforms.tAudioData.value = this.activeTrack.analizer.data;
     }
 
+    // Move camera on mousemove
     this.target.x = (1 - this.mouseX) * 0.0001;
     this.target.y = (1 - this.mouseY) * 0.0001;
     this.camera.rotation.x += 0.025 * (this.target.y - this.camera.rotation.x);
