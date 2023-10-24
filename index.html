@@ -6,7 +6,7 @@
   <input type="checkbox" disabled id="audio-enhancer-toggler" />
 </label>
 
-<div style="width: 200px; height: 40px; background-color: rgba(100, 100, 200, 0.5);" id="audio-progress-bar-container"></div>
+<div style="width: 300px; height: 40px; background-color: rgba(100, 100, 200, 0.5);" id="audio-progress-bar-container"></div>
 
 <!-- To be migrated to the Webflow -->
 <style>
@@ -20,24 +20,23 @@
   }
   input[type='range'] {
     overflow: hidden;
-    width: 200px;
-    margin: 0 10px;
+    width: 100%;
     -webkit-appearance: none;
     background-color: rgb(214 215 216);
-    border-radius: 2.5px;
+    border-radius: 3px;
   }
   input[type='range']::-webkit-slider-runnable-track {
-    height: 5px;
+    height: 6px;
     -webkit-appearance: none;
     margin-top: -1px;
     cursor: pointer;
   }
   input[type='range']::-webkit-slider-thumb {
-    width: 5px;
+    width: 6px;
     -webkit-appearance: none;
-    height: 5px;
+    height: 6px;
     background: transparent;
-    box-shadow: -100px 0 0 100px rgb(139 115 239);
+    box-shadow: -1000px 0 0 1000px rgb(139 115 239);
   }
   input[type="range"]::-moz-range-progress {
     background-color: rgb(139 115 239); 
@@ -64,15 +63,8 @@
   }
 </script>
 
-<script type="module">
-  import * as THREE from 'three';
-  import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass';
-  import {EffectComposer} from 'three/examples/jsm/postprocessing/EffectComposer';
-  import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass';
-  import {RGBShiftShader} from "three/examples/jsm/shaders/RGBShiftShader";
-  import {ShaderPass} from "three/examples/jsm/postprocessing/ShaderPass";
-
-  const vertexShader = `
+<script type="module" >  
+  window.vertexShader = `
     varying vec2 vUv;
     varying vec3 vPosition;
     varying float x;
@@ -110,8 +102,7 @@
 
       vElevation = elevation;
     }`;
-
-  const fragmentShader = `
+  window.fragmentShader = `
     varying vec2 vUv;
     varying vec3 vPosition;
     uniform float uTime;
@@ -147,6 +138,15 @@
       
       gl_FragColor = vec4(gradientColor, opacity);
     }`;
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import {RenderPass} from 'three/addons/postprocessing/RenderPass';
+  import {EffectComposer} from 'three/addons/postprocessing/EffectComposer';
+  import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass';
+  import {RGBShiftShader} from "three/addons/shaders/RGBShiftShader";
+  import {ShaderPass} from "three/addons/postprocessing/ShaderPass";
 
   class Sketch {
     onMouseMove = (event) => {
@@ -339,8 +339,8 @@
           uDepthColor: { value: new THREE.Color( 'grey' ) },
           uSurfaceColor: { value: new THREE.Color( 'white' ) },
       },
-        vertexShader,
-        fragmentShader,
+        vertexShader: window.vertexShader,
+        fragmentShader: window.fragmentShader,
         transparent: true,
         wireframe: true,
       });
