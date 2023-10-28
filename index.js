@@ -63,23 +63,14 @@ class Sketch {
     this.camera = new THREE.PerspectiveCamera( 85, this.width / this.height, 0.1, 1000 );
 
     { // POST PROCESSING
-      // Add the effectComposer
       this.composer = new EffectComposer( this.renderer );
       this.composer.setSize( window.innerWidth, window.innerHeight );
       this.composer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
 
-      /**
-       * Add the render path to the composer
-       * This pass will take care of rendering the final scene
-       */
       this.renderScene = new RenderPass( this.scene, this.camera );
       this.composer.addPass( this.renderScene );
 
       { // CHROMATIC ABBERATION
-        /**
-         * Add the rgbShift pass to the composer
-         * This pass will be responsible for handling the rgbShift effect
-         */
         this.rgbShiftPass = new ShaderPass(RGBShiftShader);
         this.rgbShiftPass.uniforms["amount"].value = 0.0001;
         this.composer.addPass( this.rgbShiftPass );
@@ -87,8 +78,8 @@ class Sketch {
 
       { // BLUR
         this.bloomPass = new UnrealBloomPass(
-        new THREE.Vector2( window.innerWidth, window.innerHeight ),
-        0.3, 5, 0,
+          new THREE.Vector2( window.innerWidth, window.innerHeight ),
+          0.3, 5, 0,
         );
         this.bloomPass.enabled = false;
         this.composer.addPass( this.bloomPass );
@@ -165,14 +156,14 @@ class Sketch {
       if ( this.audioEnhancerToggler.checked ) {
         this.activeTrack = this.trackFix;
         this.inactiveTrack = this.trackRaw;
-        this.rgbShiftPass.enabled = false;
+        this.rgbShiftPass.uniforms["amount"].value = 0.001;
         this.bloomPass.enabled = true;
         this.material.uniforms.uAudioEnhanced.value = true;
         this.material.uniforms.uAudioEnhancedInitially.value = true;
       } else {
         this.activeTrack = this.trackRaw;
         this.inactiveTrack = this.trackFix;
-        this.rgbShiftPass.enabled = true;
+        this.rgbShiftPass.uniforms["amount"].value = 0.0001;
         this.bloomPass.enabled = false;
         this.material.uniforms.uAudioEnhanced.value = false;
       }
@@ -220,8 +211,8 @@ class Sketch {
         uAudioEnhanced: { value: false },
         uAudioEnhancedInitially: { value: false },
         tAudioData: { value: new Uint8Array() },
-        uWavesElevation: { value: 0.35 },
-        uWavesSpeed: { value: 0.25 },
+        uWavesElevation: { value: 0.3 },
+        uWavesSpeed: { value: 0.4 },
         uDepthColor: { value: new THREE.Color( 'grey' ) },
         uSurfaceColor: { value: new THREE.Color( 'white' ) },
     },

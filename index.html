@@ -1,12 +1,112 @@
-<label style="color: white;">Play-pause toggler
-  <input type="checkbox" disabled id="play-pause-toggler" />
-</label>
+<!-- Inspired by the visuals of https://ykob.github.io/sketch-threejs/ -->
+<!-- Inspired by the idea of https://podcast.adobe.com/enhance -->
+<!-- Audio+ThreeJS https://youtu.be/tQL1VLTJTnc -->
+<!-- Post-processing https://blog.maximeheckel.com/posts/vaporwave-3d-scene-with-threejs/ -->
 
-<label style="color: white;">Audio enhancer toggler
-  <input type="checkbox" disabled id="audio-enhancer-toggler" />
-</label>
+<div id="container">
+  <div class="play-pause-button">
+    <input type="checkbox" id="play-pause-toggler" style="opacity:0;position:absolute;inset: 0;">
+    <div class="checkbox play-checkbox"></div>
+  </div>
+  <div class="strength-button-container">
+    <input type="checkbox" id="audio-enhancer-toggler" style="opacity:0;position:absolute;inset: 0;">
+    <div class="checkbox audio-enhancer-toggler"></div>
+  </div>
+  <div id="audio-progress-bar-container"></div>
+</div>
 
-<div style="width: 300px; height: 40px; background-color: rgba(100, 100, 200, 0.5);" id="audio-progress-bar-container"></div>
+<style>
+  .play-pause-button {
+    position: relative;
+  }
+
+  .checkbox {
+    border: 1px solid #ccc;
+  }
+
+  #container {
+    width: 30rem;
+    color: #fff;
+    border-radius: 0.5rem;
+    padding-left: 0;
+    padding-right: 0;
+    display: flex;
+    gap: 1rem;
+    position: absolute;
+    bottom: 0%;
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    background-color: rgba(29, 29, 29, .85);
+    border: 1px solid #646464;
+    padding: 1rem;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .player-button {
+    opacity: 1;
+    background-color: rgba(95, 95, 95, .5);
+    background-image: url("https://assets-global.website-files.com/650bfe21db0140abe3b9f6c2/650ca737c7620e388150e3fb_play.svg");
+    background-position: 50%;
+    background-repeat: no-repeat;
+    background-size: auto;
+    border: 1px solid rgba(147, 147, 147, .8);
+    border-radius: 22px;
+  }
+
+  .player-button.playing {
+    background-image: url("https://assets-global.website-files.com/650bfe21db0140abe3b9f6c2/650cae6675c5ad4065d76a0a_pause.svg");
+    background-position: 50%;
+    background-size: auto;
+  }
+
+  #play-pause-toggler + .play-checkbox {
+    pointer-events: none;
+    width: 3.5rem;
+    height: 3.5rem;
+    background-color: rgba(95, 95, 95, 0);
+    background-image: url("https://assets-global.website-files.com/650bfe21db0140abe3b9f6c2/650ca737c7620e388150e3fb_play.svg");
+    background-position: 50%;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+    border-color: rgba(255, 255, 255, .8);
+    border-radius: 50%;
+  }
+
+  #play-pause-toggler:checked + .play-checkbox {
+    background-image: url("https://assets-global.website-files.com/650bfe21db0140abe3b9f6c2/650cae6675c5ad4065d76a0a_pause.svg");
+  }
+
+  .strength-button-container {
+    position: relative;
+    width: 4rem;
+    height: 2rem;
+  }
+
+  #audio-enhancer-toggler + .audio-enhancer-toggler {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("https://assets-global.website-files.com/650bfe21db0140abe3b9f6c2/650c37b20529318319244cf9_ellipse.svg");
+    background-position: 0.2rem;
+    background-repeat: no-repeat;
+    background-size: 1.6rem 1.6rem;
+    border-radius: 2rem;
+    transition: background-position .1s linear;
+    pointer-events: none;
+  }
+
+  #audio-enhancer-toggler:checked + .audio-enhancer-toggler {
+    background-position: 2.25rem;
+    background-color: #9671ff;
+  }
+
+  #audio-progress-bar-container {
+    flex: 1;
+  }
+</style>
 
 <!-- TO BE MIGRATED TO THE WEBFLOW -->
 
@@ -88,12 +188,13 @@
       float floor_x = round(x);
       float floor_y = round(y);
 
-      float intensity = 0.25;
+      float intensity = 0.4;
       z = sin(tAudioData[int(floor_x)] / 32.0 + tAudioData[int(floor_y)] / 32.0) * intensity;
 
       float sin1 = sin((position.x + position.y) * 0.2 + uTime * uWavesSpeed);
       float sin2 = sin((position.x - position.y) * 0.2 + uTime * uWavesSpeed);
-      float sin3 = sin((position.x + position.y) * -0.25 + uTime * uWavesSpeed);
+      float sin3 = sin((position.x + position.y) * -0.15 + uTime * uWavesSpeed);
+
       vec3 updatePosition = vec3(position.x, position.y, z);
 
       vec4 modelPosition = modelMatrix * vec4(updatePosition, 1.0);
@@ -121,7 +222,7 @@
     uniform vec3 uSurfaceColor;
     varying float vElevation;
 
-    // note: sqrt(pow(p.x, 2.0) + pow(p-y, 2.0)) - г;
+    // note: (sqrt(pow(p.x, 2.0) + pow(p-y, 2.0)) - г);
     float sdfCircle(vec2 p, float r) {
       return length(p) - r;
     }
@@ -134,10 +235,10 @@
       // Time
       float speed = 0.5;
       float w = clamp((uTime-uStartTime) / speed, 0., 1.);
-      w = mix(float(uAudioEnhancedInitially)*1.0-w, w, float(uAudioEnhanced));
+      w = mix(float(uAudioEnhancedInitially) * 1.0-w, w, float(uAudioEnhanced));
 
       // Colors
-      vec3 defaultColor = mix(uDepthColor, uSurfaceColor, vElevation * 2.5 + 0.75);
+      vec3 defaultColor = mix(uDepthColor, uSurfaceColor, vElevation * 1.75 + 0.75);
       vec3 enhancedColor = vec3(vUv, 1.0);
 
       // Define the animation speed
