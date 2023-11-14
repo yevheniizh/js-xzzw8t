@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import {RenderPass} from 'three/addons/postprocessing/RenderPass';
-import {EffectComposer} from 'three/addons/postprocessing/EffectComposer';
-import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass';
-import {RGBShiftShader} from "three/addons/shaders/RGBShiftShader";
-import {ShaderPass} from "three/addons/postprocessing/ShaderPass";
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
 
 class Sketch {
   onMouseMove = (event) => {
@@ -26,9 +26,6 @@ class Sketch {
   };
 
   constructor() {
-    this.hrefFix = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/sample_enhanced_speech.mp3";
-    this.hrefRaw = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/sample_unenhanced_speech.mp3";
-
     // Elements
     this.canvas = document.getElementById('webgl');
     this.playPauseToggler = document.getElementById('play-pause-toggler');
@@ -50,6 +47,8 @@ class Sketch {
     this.target = new THREE.Vector3();
     this.mouseX = 0;
     this.mouseY = 0;
+
+    THREE.ColorManagement.enabled = false;
 
     // Scene
     this.scene = new THREE.Scene();
@@ -93,32 +92,35 @@ class Sketch {
     this.fftSize = 512;
 
     // Initializing
-    this.setupMouseEvents();
-    this.setupResize();
+    this.addEventListeners();
     this.setupPlayer();
     this.addObjects();
     this.render();
   }
 
-  setupPlayer() {
-    this.tracksReady = 0;
-    this.trackRaw = this.prepareTrack( this.hrefRaw );
-    this.trackFix = this.prepareTrack( this.hrefFix );
+  addEventListeners() {
+    window.addEventListener('mousemove', this.onMouseMove);
+    window.addEventListener('resize', this.onResize);
   }
 
-  prepareTrack(href) {
+  setupPlayer() {
+    this.trackFix = this.prepareTrack( window.audioElementFix );
+    this.trackRaw = this.prepareTrack( window.audioElementRaw );
+  }
+
+  prepareTrack( mediaElement ) {
     const listener = new THREE.AudioListener();
     const audio = new THREE.Audio( listener );
     this.context = audio.context;
-    const mediaElement = new Audio( href );
-    mediaElement.crossOrigin = "anonymous";
-    mediaElement.loop = true;
-    mediaElement.onloadeddata = () => {
-      this.tracksReady = this.tracksReady + 1;
-      // Enable togglers on tracks load
-      if( this.tracksReady === 2 ) {
+
+    // Check that the media is minimally ready to play.
+    mediaElement.oncanplaythrough = () => {
+      mediaElement.loop = true;
+      this.tracksReady = ( this.tracksReady || 0 ) + 1;
+
+      if ( this.tracksReady === 2 ) {
         this.onAllTracksLoad();
-      };
+      }
     };
 
     audio.setMediaElementSource( mediaElement );
@@ -193,14 +195,6 @@ class Sketch {
     });
   }
 
-  setupMouseEvents() {
-    window.addEventListener('mousemove', this.onMouseMove);
-  }
-
-  setupResize() {
-    window.addEventListener('resize', this.onResize);
-  }
-
   addObjects() {
     this.geometry = new THREE.PlaneGeometry(64, 64, 64, 64);
     this.material = new THREE.ShaderMaterial({
@@ -216,8 +210,8 @@ class Sketch {
         uDepthColor: { value: new THREE.Color( 'grey' ) },
         uSurfaceColor: { value: new THREE.Color( 'white' ) },
     },
-      vertexShader: window.vertexShader,
-      fragmentShader: window.fragmentShader,
+      vertexShader: document.getElementById('vertexShader').textContent,
+      fragmentShader: document.getElementById('fragmentShader').textContent,
       transparent: true,
       wireframe: true,
     });
