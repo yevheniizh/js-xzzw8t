@@ -26,8 +26,8 @@ class Sketch {
   };
 
   constructor() {
-    this.hrefFix = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/Magic-Audio-FIX.mp3";
-    this.hrefRaw = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/Magic-Audio-RAW.mp3";
+    this.hrefFix = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/sample_enhanced_speech.mp3";
+    this.hrefRaw = "https://cdn.jsdelivr.net/gh/yevheniizh/js-xzzw8t@progress-bar/sample_unenhanced_speech.mp3";
 
     // Elements
     this.canvas = document.getElementById('webgl');
