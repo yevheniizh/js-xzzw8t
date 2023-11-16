@@ -5,6 +5,94 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
 
+const vertexShader = `  
+  varying vec2 vUv;
+  varying vec3 vPosition;
+  varying float x;
+  varying float y;
+  varying float z;
+  uniform float[64] tAudioData;
+
+  uniform float uTime;
+  uniform float uWavesElevation;
+  uniform float uWavesSpeed;
+  varying float vElevation;
+
+  void main() {
+    vUv = uv;
+    vPosition = position;
+
+    x = abs(position.x);
+    y = abs(position.y);
+
+    float floor_x = round(x);
+    float floor_y = round(y);
+
+    float intensity = 0.4;
+    z = sin(tAudioData[int(floor_x)] / 32.0 + tAudioData[int(floor_y)] / 32.0) * intensity;
+
+    float sin1 = sin((position.x + position.y) * 0.2 + uTime * uWavesSpeed);
+    float sin2 = sin((position.x - position.y) * 0.2 + uTime * uWavesSpeed);
+    float sin3 = sin((position.x + position.y) * -0.15 + uTime * uWavesSpeed);
+
+    vec3 updatePosition = vec3(position.x, position.y, z);
+
+    vec4 modelPosition = modelMatrix * vec4(updatePosition, 1.0);
+
+    float elevation = sin1 * sin2 * sin3 * uWavesElevation;
+
+    modelPosition.y += elevation;
+
+    gl_Position = projectionMatrix * viewMatrix * modelPosition;
+    
+    // Varyings
+    vElevation = elevation;
+  }`;
+
+const fragmentShader = `  
+  varying vec2 vUv;
+  varying vec3 vPosition;
+  uniform float uTime;
+  uniform float uStartTime; 
+  const float duration = 2.0;
+  const float delay = 0.0;
+  uniform bool uAudioEnhanced;
+  uniform bool uAudioEnhancedInitially;
+
+  uniform vec3 uDepthColor;
+  uniform vec3 uSurfaceColor;
+  varying float vElevation;
+
+  // note: (sqrt(pow(p.x, 2.0) + pow(p-y, 2.0)) - г);
+  float sdfCircle(vec2 p, float r) {
+    return length(p) - r;
+  }
+
+  void main() {
+    // Initial appearing
+    float now = clamp((uTime - delay) / duration, 0.1, 1.0);
+    float opacity = (1.0 - length(vPosition.xy / vec2(32.0))) * now;
+
+    // Time
+    float speed = 0.5;
+    float w = clamp((uTime-uStartTime) / speed, 0., 1.);
+    w = mix(float(uAudioEnhancedInitially) * 1.0-w, w, float(uAudioEnhanced));
+
+    // Colors
+    vec3 defaultColor = mix(uDepthColor, uSurfaceColor, vElevation * 1.75 + 0.75);
+    vec3 enhancedColor = vec3(vUv, 1.0);
+
+    // Define the animation speed
+    float radius = 16.0 * w;
+    float distance = sdfCircle( vPosition.xy, radius );
+
+    // Calculate the gradient based on the distance from the center
+    vec3 gradientColor = mix(enhancedColor, defaultColor, step(radius, distance));
+  
+    // Set the fragment color
+    gl_FragColor = vec4(gradientColor, opacity);
+  }`;
+
 class Sketch {
   onMouseMove = (event) => {
     this.mouseX = event.clientX - this.width / 2;
@@ -210,8 +298,8 @@ class Sketch {
         uDepthColor: { value: new THREE.Color( 'grey' ) },
         uSurfaceColor: { value: new THREE.Color( 'white' ) },
     },
-      vertexShader: document.getElementById('vertexShader').textContent,
-      fragmentShader: document.getElementById('fragmentShader').textContent,
+      vertexShader,
+      fragmentShader,
       transparent: true,
       wireframe: true,
     });
