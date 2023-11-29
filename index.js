@@ -177,7 +177,8 @@ class Sketch {
     this.time = 0;
 
     // Audio
-    this.fftSize = 512;
+    this.tracks = [];
+    this.context = new AudioContext();
 
     // Initializing
     this.addEventListeners();
@@ -192,28 +193,37 @@ class Sketch {
   }
 
   setupPlayer() {
-    this.trackFix = this.prepareTrack( window.audioElementFix );
-    this.trackRaw = this.prepareTrack( window.audioElementRaw );
+    this.prepareTrack( { mediaElement: window.audioElementRaw, type: 'raw' } );
+    this.prepareTrack( { mediaElement: window.audioElementFix, type: 'fix' } );
   }
 
-  prepareTrack( mediaElement ) {
-    const listener = new THREE.AudioListener();
-    const audio = new THREE.Audio( listener );
-    this.context = audio.context;
-
+  prepareTrack( { mediaElement, type } ) {
     // Check that the media is minimally ready to play.
     mediaElement.oncanplaythrough = () => {
       mediaElement.loop = true;
-      this.tracksReady = ( this.tracksReady || 0 ) + 1;
 
-      if ( this.tracksReady === 2 ) {
+      const src = this.context.createMediaElementSource(mediaElement);
+      const analyser = this.context.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const gain = this.context.createGain();
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      // Volume
+      gain.gain.value = 0.07;
+  
+      analyser.connect(gain);
+      gain.connect(this.context.destination);
+      
+      this.tracks.push({ analyser, gain, mediaElement, type, dataArray });
+
+      // Check if all tracks are loaded
+      if ( this.tracks.length === 2 ) {
+        this.trackRaw = this.tracks.find( track => track.type === 'raw' );
+        this.trackFix = this.tracks.find( track => track.type === 'fix' );
         this.onAllTracksLoad();
       }
     };
-
-    audio.setMediaElementSource( mediaElement );
-    const analizer = new THREE.AudioAnalyser( audio, this.fftSize );
-    return ({ audio, analizer, mediaElement });
   }
 
   onAllTracksLoad() {
@@ -224,7 +234,8 @@ class Sketch {
 
     this.activeTrack = this.trackRaw;
     this.inactiveTrack = this.trackFix;
-    this.inactiveTrack.mediaElement.volume = 0;
+    // Use gain to mute or set volume, ios doesn't support muted property (https://stackoverflow.com/a/17720950)
+    this.inactiveTrack.gain.gain.value = 0.0;
 
     this.playPauseToggler.addEventListener( 'click', () => {
       // Avoid browser autoplay policy https://developer.chrome.com/blog/autoplay/#webaudio
@@ -258,8 +269,8 @@ class Sketch {
         this.material.uniforms.uAudioEnhanced.value = false;
       }
 
-      this.activeTrack.mediaElement.volume = 0.5;
-      this.inactiveTrack.mediaElement.volume = 0;
+      this.activeTrack.gain.gain.value = 0.07;
+      this.inactiveTrack.gain.gain.value = 0.0;
       this.material.uniforms.uStartTime.value = this.time;
     } );
 
@@ -316,9 +327,9 @@ class Sketch {
     this.material.uniforms.uTime.value = this.time;
 
     // Pass audio data to shaders
-    if (this.activeTrack?.analizer) {
-      this.activeTrack.analizer.getFrequencyData();
-      this.material.uniforms.tAudioData.value = this.activeTrack.analizer.data;
+    if (this.activeTrack && this.activeTrack?.analyser) {
+      this.activeTrack.analyser.getByteFrequencyData(this.activeTrack.dataArray);
+      this.material.uniforms.tAudioData.value = this.activeTrack.dataArray;
     }
 
     // Move camera on mousemove
